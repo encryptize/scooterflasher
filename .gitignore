@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+binaries/firmware/*.bin
+oocd/bin/
