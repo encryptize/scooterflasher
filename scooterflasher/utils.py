@@ -130,9 +130,6 @@ def parse_args():
             if not re.match(r"[A-Z0-9]{14}", args.sn):
                 raise ValueError(f"Invalid SN format. {args.sn}")
             
-        if args.fake_chip and args.device in NINEBOT_DEV:
-            raise NotImplementedError("Support for AT32 is not ready.")
-            
         args.km = int(args.km*1000)
         
     elif args.target == "BLE":

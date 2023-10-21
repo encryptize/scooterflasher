@@ -6,7 +6,7 @@ ScooterFlasher is a simple wrapper for OpenOCD that allows you to easily reflash
 # Special thanks
 Before you start reading the instructions for using this program, I would like to thank the [ScooterHacking](https://scooterhacking.org/) team incredibly for creating [ReFlasher](https://www.scooterhacking.org/forum/viewtopic.php?f=14&t=676). It's mainly based on it, but ScooterFlasher's goal is cross-platform. At the cost of the lack of a GUI (but maybe one will appear someday).
 # How I can use it?
-It's easy! All you need is to have Python version 3.11 at least installed on your computer (maybe that works with any older 3.x, not tested) and the [OpenOCD](https://openocd.org/) program, with which it is possible to communicate via ST-Link.
+It's easy! All you need is to have Python version 3.11 at least installed on your computer (maybe that works with any older 3.x, not tested) and the [OpenOCD](https://openocd.org/) program, with which it is possible to communicate via ST-Link. If you need AT32 (new MCU in Ninebot's ECUs) support, you need a custom build of OpenOCD. For Windows it's in the repository by default, Linux and macOS users need to build it by themselves from the repository [OpenOCD-AT32](https://github.com/encryptize/openocd-at32).
 
  1. Clone repo
  ```bash
@@ -43,6 +43,6 @@ python -m scooterflasher --help
 
 # TODO
 
- - [ ] AT32 Support for Ninebot's ESC
+ - [x] AT32 Support for Ninebot's ESC
  - [ ] Fix the update system for ScooterFlasher
  - [ ] GUI Support

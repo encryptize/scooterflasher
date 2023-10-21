@@ -22,7 +22,7 @@ class OpenOCD:
             
         # Check if openocd provided by program is available
         command = "./oocd/bin/openocd.exe"
-        if os.path.isfile(command):
+        if os.path.isfile(command) and os.name == "nt":
             return command
         
         # Search for openocd in path

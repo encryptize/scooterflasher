@@ -155,7 +155,12 @@ class Flasher:
     
     def get_bootloader_path(self, target, brand):
         if target == "ESC":
-            bootloader_file = f"{brand}_ESC_GD32.bin" if self.fake_chip and self.device in XIAOMI_DEV else f"{brand}_ESC.bin"
+            if self.fake_chip and self.device in XIAOMI_DEV:
+                bootloader_file = f"{brand}_DRV_GD32.bin" 
+            elif self.fake_chip and self.device in NINEBOT_DEV:
+                bootloader_file = f"{brand}_DRV_AT32.bin" 
+            else:
+                bootloader_file = f"{brand}_DRV.bin"
         elif target == "BLE":
             bootloader_file = f"{brand}_BLE.bin" if self.fake_chip or self.device not in V2_BLE_PREFIX else f"{brand}_BLE_V2.bin"
         if os.path.exists(os.path.join(CONFIG_DIRECTORY, "binaries", "bootloader", bootloader_file)):
