@@ -6,7 +6,7 @@ from scooterflasher.utils import parse_args, sfprint
 from scooterflasher.updater import check_update
 
 args = parse_args()
-flash = Flasher(args.device, args.sn, args.fake_chip, args.custom_fw)
+flash = Flasher(args.device, args.sn, args.fake_chip, args.custom_fw, args.openocd)
 check_update()
 
 if args.target == "ESC":

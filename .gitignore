@@ -129,4 +129,3 @@ dmypy.json
 .pyre/
 
 binaries/firmware/*.bin
-oocd/bin/

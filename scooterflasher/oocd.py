@@ -9,16 +9,16 @@ from typing import Tuple
 from scooterflasher import utils
 
 class OpenOCD:
-    def __init__(self) -> None:
-        self.bin_path = self.get_bin_path()
+    def __init__(self, openocd_path: str) -> None:
+        self.bin_path = self.get_bin_path(openocd_path)
         self.base_args = [self.bin_path, "-s", "oocd/scripts/", "-f", "oocd/scripts/interface/stlink.cfg"]
 
-    def get_bin_path(self) -> str:
+    @staticmethod
+    def get_bin_path(openocd_path: str) -> str:
         # Try to use openocd specified in args
-        command = utils.parse_args().openocd
-        if command:
-            if os.path.isfile(command):
-                return command
+        if openocd_path:
+            if os.path.isfile(openocd_path):
+                return openocd_path
             
         # Check if openocd provided by program is available
         command = "./oocd/bin/openocd.exe"

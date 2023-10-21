@@ -13,12 +13,12 @@ from scooterflasher.oocd import OpenOCD
 from scooterflasher.config import CONFIG_DIRECTORY
 
 class Flasher:
-    def __init__(self, device: str, sn: str, fake_chip: bool = False, custom_fw: str = None) -> None:
+    def __init__(self, device: str, sn: str, fake_chip: bool = False, custom_fw: str = None, openocd_path: str = None) -> None:
         self.device = device
         self.sn = sn
         self.fake_chip = fake_chip
         self.custom_fw = custom_fw
-        self.openocd = OpenOCD()
+        self.openocd = OpenOCD(openocd_path)
 
     def unlock_gd32(self):
         sfprint("Unlocking GD32")
