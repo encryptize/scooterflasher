@@ -113,22 +113,24 @@ class Flasher:
         if self.fake_chip and self.device in XIAOMI_DEV:
             # if not unlocked, stop
             if not self.unlock_gd32():
-                return
+                sys.exit(1)
         
         if extract_uid:
             # if not extracted, stop
             if not self.read_uid_stm32():
-                return
+                sys.exit(1)
             
         self.generate_userdata_esc(extract_uid, activate_ecu, mileage)
         
         if self.fake_chip and self.device in XIAOMI_DEV:
             # if not unlocked, stop
             if not self.unlock_gd32():
-                return
+                sys.exit(1)
             
         if self.flash_stm32():
             sfprint("All done")
+        else:
+            sys.exit(1)
 
     def flash_ble(self, fast_mode: bool):
         if len(self.sn) <= 0 or len(self.sn) > 13:
@@ -136,6 +138,8 @@ class Flasher:
         self.generate_userdata_ble()
         if self.flash_nrf51(fast_mode):
             sfprint("All done")
+        else:
+            sys.exit(1)
         
     def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float):
         userdata = bytearray(1023)
