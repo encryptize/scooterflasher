@@ -1,9 +1,15 @@
 #! -*- coding: utf-8 -*-
 #!/usr/bin/env python3
 
+import os
+
 from scooterflasher.core import Flasher
 from scooterflasher.utils import parse_args, sfprint
+from scooterflasher.config import CONFIG_DIRECTORY
 from scooterflasher.updater import check_update
+
+for dir in ["binaries/firmware", "tmp"]:
+    os.makedirs(os.path.join(CONFIG_DIRECTORY, dir), exist_ok=True)
 
 args = parse_args()
 flash = Flasher(args.device, args.sn, args.fake_chip, args.custom_fw, args.openocd)
