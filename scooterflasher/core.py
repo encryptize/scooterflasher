@@ -7,6 +7,8 @@
 # <3 ScooterHacking.org <3
 
 import os
+import sys
+import re
 
 from scooterflasher.utils import sfprint, XIAOMI_DEV, NINEBOT_DEV, V2_BLE_PREFIX
 from scooterflasher.oocd import OpenOCD
@@ -96,7 +98,18 @@ class Flasher:
         return self.openocd.run(args)
 
 
-    def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: int = 0):
+    def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0):
+        if mileage < 0 or mileage > 30000:
+            raise ValueError("Mileage must be between 0 and 30000km")
+        if len(self.sn) != 14:
+            raise ValueError(f"SN must be 14-chars long. {self.sn}")
+        if self.device in XIAOMI_DEV:
+            if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
+                raise ValueError(f"Invalid SN format. {self.sn}")
+        elif self.device in NINEBOT_DEV:
+            if not re.match(r"[A-Z0-9]{14}", self.sn):
+                raise ValueError(f"Invalid SN format. {self.sn}")
+        
         if self.fake_chip and self.device in XIAOMI_DEV:
             # if not unlocked, stop
             if not self.unlock_gd32():
@@ -118,11 +131,13 @@ class Flasher:
             sfprint("All done")
 
     def flash_ble(self, fast_mode: bool):
+        if len(self.sn) <= 0 or len(self.sn) > 13:
+            raise ValueError(f"The scooter name must have at least one character, and up to 13. {self.sn}")
         self.generate_userdata_ble()
         if self.flash_nrf51(fast_mode):
             sfprint("All done")
         
-    def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: int):
+    def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float):
         userdata = bytearray(1023)
         userdata[0:1] = b'\Q'
 
@@ -132,7 +147,7 @@ class Flasher:
                 userdata[436:436+12] = uf.read()
         if activate_ecu:
             userdata[59] = 8
-        userdata[82:82+4] = mileage.to_bytes(4, "little")
+        userdata[82:82+4] = int(mileage*1000).to_bytes(4, "little")
 
         tmp_userdata = self.get_userdata_location()
         with open(tmp_userdata, mode='wb') as f_data:

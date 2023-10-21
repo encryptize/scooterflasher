@@ -2,7 +2,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import re
 
 XIAOMI_DEV = [
     "m365", "pro", "pro2", "1s", "lite", "mi3"
@@ -116,24 +115,4 @@ def parse_args():
                         help="Custom firmware to flash instead of an official")
     
     args = parser.parse_args()
-    
-    if args.km < 0 or args.km > 30000:
-        raise ValueError("Mileage must be between 0 and 30000km")
-    
-    if args.target == "ESC":
-        if len(args.sn) != 14:
-            raise ValueError(f"SN must be 14-chars long. {args.sn}")
-        if args.device in XIAOMI_DEV:
-            if not re.match(r"[0-9]{5}\/[0-9]{8}", args.sn):
-                raise ValueError(f"Invalid SN format. {args.sn}")
-        elif args.device in NINEBOT_DEV:
-            if not re.match(r"[A-Z0-9]{14}", args.sn):
-                raise ValueError(f"Invalid SN format. {args.sn}")
-            
-        args.km = int(args.km*1000)
-        
-    elif args.target == "BLE":
-        if len(args.sn) == 0 or len(args.sn) > 13:
-            raise ValueError(f"The scooter name must have at least one character, and up to 13. {args.sn}")
-        
     return args
