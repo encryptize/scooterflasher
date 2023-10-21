@@ -22,25 +22,20 @@ class Flasher:
         self.custom_fw = custom_fw
         self.openocd = OpenOCD(openocd_path)
 
-    def unlock_gd32(self):
+    def unlock_gd32(self) -> bool:
         sfprint("Unlocking GD32")
         args = ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"', '-c "reset halt"', '-c "exit"']
         return self.openocd.run(args)
     
-    def read_uid_stm32(self):
+    def read_uid_stm32(self) -> bool:
         sfprint("Reading STM32 UID")
         uid_file = os.path.join(CONFIG_DIRECTORY, "uid.bin")
-        if self.fake_chip and self.device in XIAOMI_DEV:
-            args = ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"', '-c "reset halt"']
-        else:
-            args = ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c "init"']
-
+        args = self.get_esc_target_args()
         args += ['-c "flash probe 0"', '-c "stm32f1x unlock 0"', '-c "reset halt"', 
                  '-c "dump_image ' + uid_file + ' 0x1FFFF7E8 12"', '-c "exit"']
-
         return self.openocd.run(args)
 
-    def flash_stm32(self):
+    def flash_stm32(self) -> bool:
         sfprint("Writing to chip")
         if self.device in XIAOMI_DEV:
             brand = "mi"
@@ -51,14 +46,7 @@ class Flasher:
         firmware_file = self.get_firmware_path("ESC")
         user_data = self.get_userdata_location()
 
-        if self.fake_chip and self.device in XIAOMI_DEV:
-            args = ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"', '-c "reset halt"']
-        else:
-            args = ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c "init"']
-
-        if not self.fake_chip or self.device not in XIAOMI_DEV:
-            args += ['-c "reset halt"']
-        
+        args = self.get_esc_target_args()
         args += ['-c "flash probe 0"', '-c "stm32f1x unlock 0"', '-c "reset halt"', '-c "stm32f1x mass_erase 0"',
                  '-c "flash write_bank 0 ' + bootloader_file + '"',
                  '-c "flash write_bank 0 ' + firmware_file + ' 0x1000"']
@@ -71,7 +59,7 @@ class Flasher:
         args += ['-c "reset run"', '-c "exit"']
         return self.openocd.run(args)
 
-    def flash_nrf51(self, fast_mode: bool):
+    def flash_nrf51(self, fast_mode: bool) -> bool:
         sfprint("Writing to chip")
 
         if self.device in XIAOMI_DEV:
@@ -98,7 +86,7 @@ class Flasher:
         return self.openocd.run(args)
 
 
-    def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0):
+    def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0) -> None:
         if mileage < 0 or mileage > 30000:
             raise ValueError("Mileage must be between 0 and 30000km")
         if len(self.sn) != 14:
@@ -132,7 +120,7 @@ class Flasher:
         else:
             sys.exit(1)
 
-    def flash_ble(self, fast_mode: bool):
+    def flash_ble(self, fast_mode: bool) -> None:
         if len(self.sn) <= 0 or len(self.sn) > 13:
             raise ValueError(f"The scooter name must have at least one character, and up to 13. {self.sn}")
         self.generate_userdata_ble()
@@ -141,7 +129,7 @@ class Flasher:
         else:
             sys.exit(1)
         
-    def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float):
+    def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float) -> str:
         userdata = bytearray(1023)
         userdata[0:1] = b'\Q'
 
@@ -160,7 +148,7 @@ class Flasher:
         sfprint("Generated user data page")
         return tmp_userdata
     
-    def generate_userdata_ble(self):
+    def generate_userdata_ble(self) -> str:
         userdata = bytearray(23)
         userdata[0:1] = b'U\xaa'
         userdata[8:8+len(self.sn)] = self.sn.encode(encoding="ascii")
@@ -172,7 +160,7 @@ class Flasher:
         sfprint("Generated user data page")
         return tmp_userdata
     
-    def get_bootloader_path(self, target, brand):
+    def get_bootloader_path(self, target, brand) -> str:
         if target == "ESC":
             if self.fake_chip and self.device in XIAOMI_DEV:
                 bootloader_file = f"{brand}_DRV_GD32.bin" 
@@ -187,17 +175,25 @@ class Flasher:
         else:
             return os.path.join("./binaries/bootloader", bootloader_file)
 
-    def get_firmware_path(self, target):
+    def get_firmware_path(self, target) -> str:
         firmware_file = self.custom_fw if self.custom_fw else f"{self.device}_{target}.bin"
         return os.path.join(CONFIG_DIRECTORY, "binaries", "firmware", firmware_file)
     
-    def get_uicr_file(self):
+    def get_uicr_file(self) -> str:
         uicr_file = "UICR.bin" if self.fake_chip or self.device not in V2_BLE_PREFIX else "UICR_32K.bin"
         if os.path.exists(os.path.join(CONFIG_DIRECTORY, "binaries", uicr_file)):
             return os.path.join(CONFIG_DIRECTORY, "binaries", uicr_file)
         else:
             return os.path.join("./binaries", uicr_file)
+        
+    def get_esc_target_args(self) -> list:
+        if self.fake_chip and self.device in XIAOMI_DEV:
+            return ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"']
+        elif self.fake_chip and self.device in NINEBOT_DEV:
+            return ["-f", "oocd/scripts/target/at32.cfg", '-c "init"', '-c "reset halt"']
+        else:
+            return ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c "init"', '-c "reset halt"']
     
     @staticmethod
-    def get_userdata_location():
+    def get_userdata_location() -> str:
         return os.path.join(CONFIG_DIRECTORY, "tmp", "data_tmp.bin")
