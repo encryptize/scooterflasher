@@ -44,5 +44,5 @@ python -m scooterflasher --help
 # TODO
 
  - [x] AT32 Support for Ninebot's ESC
- - [ ] Fix the update system for ScooterFlasher
+ - [x] Fix the update system for ScooterFlasher
  - [ ] GUI Support

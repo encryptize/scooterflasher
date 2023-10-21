@@ -10,7 +10,6 @@ CONFIG_TEMPLATE = {
     "ALLOW_GITHUB_UPDATES": False,
     "LAST_CHECK": 0,
     "LAST_COMMITS": {
-        "ScooterFlasher": "",
         "Firmware": ""
     }
 }

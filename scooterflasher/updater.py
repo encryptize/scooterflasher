@@ -10,8 +10,9 @@ import webbrowser
 
 from scooterflasher.utils import XIAOMI_DEV, NINEBOT_DEV, sfprint
 from scooterflasher.config import CONFIG_DIRECTORY, check_config, update_config, ask_user
+from scooterflasher import version
 
-SCOOTERFLASHER_GIT = "https://api.github.com/repos/encryptize/scooterflasher/commits/master"
+SCOOTERFLASHER_RELEASES = "https://api.github.com/repos/encryptize/scooterflasher/releases"
 FIRMWARE_GIT = "https://api.github.com/repos/scooterhacking/firmware/commits/master"
 FIRMWARE_ZIP = "https://github.com/scooterhacking/firmware/archive/refs/heads/master.zip"
 FIRMWARE_DIR = os.path.join(CONFIG_DIRECTORY, "binaries", "firmware")
@@ -67,14 +68,11 @@ def check_update():
     last_commits = config['LAST_COMMITS']
     
     # Check updates for ScooterFlasher
-    # So far it's not working properly. If the user ignores the message, 
-    # it will only show up next time with the next new version....
-    sf_json = requests.get(SCOOTERFLASHER_GIT).json()
-    if last_commits["ScooterFlasher"] != sf_json['sha']:
-        sfprint("An update for ScooterFlasher is available. Look at https://github.com/encryptize/scooterflasher")
+    sf_json = requests.get(SCOOTERFLASHER_RELEASES).json()[0]
+    if sf_json['tag_name'].strip('v') > version.__version__:
+        sfprint(f"An update for ScooterFlasher is available. Look at {sf_json['html_url']}")
         if ask_user("Would you like to open your web browser to check for an update?"):
-            webbrowser.open("https://github.com/encryptize/scooterflasher")
-        config['LAST_COMMITS']['ScooterFlasher'] = sf_json['sha']
+            webbrowser.open(sf_json['html_url'])
 
     # Check updates for ScooterHacking Firmware Repository
     fw_json = requests.get(FIRMWARE_GIT).json()
