@@ -95,7 +95,7 @@ class Flasher:
         ram_file = self.get_ram_path()
         args = self.get_esc_target_args()[:4]
 
-        args += shlex.split('-c', 'dump_image ' + ram_file + ' 0x20000000 0x7D00')
+        args += ['-c', 'dump_image ' + ram_file + ' 0x20000000 0x7D00']
         args.append('-c', 'exit')
         return self.openocd.run(args)
 
