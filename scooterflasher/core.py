@@ -10,29 +10,32 @@ import os
 import sys
 import re
 
-from scooterflasher.utils import sfprint, XIAOMI_DEV, NINEBOT_DEV, V2_BLE_PREFIX
+from scooterflasher.utils import sfprint, XIAOMI_DEV, NINEBOT_DEV, V2_BLE_PREFIX, FAKEDRV_DEV
 from scooterflasher.oocd import OpenOCD
 from scooterflasher.config import CONFIG_DIRECTORY
 
 class Flasher:
-    def __init__(self, device: str, sn: str, fake_chip: bool = False, custom_fw: str = None, openocd_path: str = None) -> None:
+    def __init__(self, device: str, sn: str, fake_chip: bool = False, 
+                 extract_data: bool = False, custom_fw: str = None, 
+                 openocd_path: str = None) -> None:
         self.device = device
         self.sn = sn
         self.fake_chip = fake_chip
+        self.extract_data = extract_data
         self.custom_fw = custom_fw
         self.openocd = OpenOCD(openocd_path)
 
     def unlock_gd32(self) -> bool:
         sfprint("Unlocking GD32")
-        args = ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"', '-c "reset halt"', '-c "exit"']
+        args = ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c', 'init', '-c', 'reset halt', '-c', 'exit']
         return self.openocd.run(args)
     
     def read_uid_stm32(self) -> bool:
         sfprint("Reading STM32 UID")
-        uid_file = os.path.join(CONFIG_DIRECTORY, "uid.bin")
+        uid_file = os.path.join(CONFIG_DIRECTORY, "uid.bin").replace(os.sep, '/')
         args = self.get_esc_target_args()
-        args += ['-c "flash probe 0"', '-c "stm32f1x unlock 0"', '-c "reset halt"', 
-                 '-c "dump_image ' + uid_file + ' 0x1FFFF7E8 12"', '-c "exit"']
+        args += ['-c', 'flash probe 0', '-c', 'stm32f1x unlock 0', '-c', 'reset halt', 
+                 '-c', 'dump_image ' + uid_file + ' 0x1FFFF7E8 12', '-c', 'exit']
         return self.openocd.run(args)
 
     def flash_stm32(self) -> bool:
@@ -44,19 +47,19 @@ class Flasher:
         
         bootloader_file = self.get_bootloader_path("ESC", brand)
         firmware_file = self.get_firmware_path("ESC")
-        user_data = self.get_userdata_location()
+        user_data = self.get_cuted_ram_path() if self.extract_data else self.get_userdata_location()
 
         args = self.get_esc_target_args()
-        args += ['-c "flash probe 0"', '-c "stm32f1x unlock 0"', '-c "reset halt"', '-c "stm32f1x mass_erase 0"',
-                 '-c "flash write_bank 0 ' + bootloader_file + '"',
-                 '-c "flash write_bank 0 ' + firmware_file + ' 0x1000"']
+        args += ['-c', 'flash probe 0', '-c', 'stm32f1x unlock 0', '-c', 'reset halt', '-c', 'stm32f1x mass_erase 0']
+        args += ['-c', 'flash write_bank 0 ' + bootloader_file]
+        args += ['-c', 'flash write_bank 0 ' + firmware_file + ' 0x1000']
         
         if self.device in NINEBOT_DEV:
-            args += ['-c "flash write_bank 0 ' + user_data + ' 0x1C000"']
+            args += ['-c', 'flash write_bank 0 ' + user_data + ' 0x1C000']
         elif self.device in XIAOMI_DEV:
-            args += ['-c "flash write_bank 0 ' + user_data + ' 0xF800"']
+            args += ['-c', 'flash write_bank 0 ' + user_data + ' 0xF80']
 
-        args += ['-c "reset run"', '-c "exit"']
+        args += ['-c', 'reset run', '-c', 'exit']
         return self.openocd.run(args)
 
     def flash_nrf51(self, fast_mode: bool) -> bool:
@@ -73,42 +76,61 @@ class Flasher:
         uicr_file = self.get_uicr_file()
 
         args = ['-f', 'oocd/scripts/target/nrf51-fast.cfg' if fast_mode else 'oocd/scripts/target/nrf51.cfg',
-                '-c "init"', '-c "reset halt"', '-c "nrf51 mass_erase 0"',
-                '-c "program ' + bootloader_file + ' 0x000000 verify"']
+                '-c', 'init', '-c', 'reset halt', '-c', 'nrf51 mass_erase 0',
+                '-c', 'program ' + bootloader_file + ' 0x000000 verify']
         if self.fake_chip or self.device not in V2_BLE_PREFIX:
-            args += ['-c "program ' + firmware_file + ' 0x18000 verify"',
-                     '-c "program ' + user_data + ' 0x23400 verify"']
+            args += ['-c', 'program ' + firmware_file + ' 0x18000 verify',
+                     '-c', 'program ' + user_data + ' 0x23400 verify']
         else:
-            args += ['-c "program ' + firmware_file + ' 0x1B000 verify"',
-                     '-c "program ' + user_data + ' 0x3B800 verify"']
+            args += ['-c', 'program ' + firmware_file + ' 0x1B000 verify',
+                     '-c', 'program ' + user_data + ' 0x3B800 verify']
             
-        args += ['-c "program ' + uicr_file + ' 0x10001000 verify"', '-c "reset run"', '-c "exit"']
+        args += ['-c', 'program ' + uicr_file + ' 0x10001000 verify', '-c', 'reset run', '-c', 'exit']
+        return self.openocd.run(args)
+    
+    def dump_ram_stm32(self):
+        if self.fake_chip and self.device in XIAOMI_DEV:
+            sfprint("Warning: the GD32 has not been tested with this function. In case of problems, please report it.")
+
+        ram_file = self.get_ram_path()
+        args = self.get_esc_target_args()[:4]
+
+        args += shlex.split('-c', 'dump_image ' + ram_file + ' 0x20000000 0x7D00')
+        args.append('-c', 'exit')
         return self.openocd.run(args)
 
-
     def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0) -> None:
-        if mileage < 0 or mileage > 30000:
-            raise ValueError("Mileage must be between 0 and 30000km")
-        if len(self.sn) != 14:
-            raise ValueError(f"SN must be 14-chars long. {self.sn}")
-        if self.device in XIAOMI_DEV:
-            if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
-                raise ValueError(f"Invalid SN format. {self.sn}")
-        elif self.device in NINEBOT_DEV:
-            if not re.match(r"[A-Z0-9]{14}", self.sn):
-                raise ValueError(f"Invalid SN format. {self.sn}")
+        if self.fake_chip and self.device not in FAKEDRV_DEV:
+            raise RuntimeError(f"{self.device} doesn't have a fake chip")
+        if not self.extract_data:
+            if mileage < 0 or mileage > 30000:
+                raise ValueError("Mileage must be between 0 and 30000km")
+            if len(self.sn) != 14:
+                raise ValueError(f"SN must be 14-chars long. {self.sn}")
+            if self.device in XIAOMI_DEV:
+                if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
+                    raise ValueError(f"Invalid SN format. {self.sn}")
+            elif self.device in NINEBOT_DEV:
+                if not re.match(r"[A-Z0-9]{14}", self.sn):
+                    raise ValueError(f"Invalid SN format. {self.sn}")
         
         if self.fake_chip and self.device in XIAOMI_DEV:
             # if not unlocked, stop
             if not self.unlock_gd32():
                 sys.exit(1)
-        
-        if extract_uid:
+
+        if self.extract_data:
             # if not extracted, stop
-            if not self.read_uid_stm32():
+            if not self.dump_ram_stm32():
                 sys.exit(1)
-            
-        self.generate_userdata_esc(extract_uid, activate_ecu, mileage)
+            self.parse_userdata_esc_ram()
+        else:
+            if extract_uid:
+                # if not extracted, stop
+                if not self.read_uid_stm32():
+                    sys.exit(1)
+                
+            self.generate_userdata_esc(extract_uid, activate_ecu, mileage)
         
         if self.fake_chip and self.device in XIAOMI_DEV:
             # if not unlocked, stop
@@ -148,6 +170,40 @@ class Flasher:
         sfprint("Generated user data page")
         return tmp_userdata
     
+    def parse_userdata_esc_ram(self) -> str:
+        ram_path = self.get_ram_path()
+        if not os.path.isfile(ram_path):
+            raise RuntimeError("No RAM dump file found")
+        
+        with open(ram_path, mode='rb') as fh:
+            ram_content = fh.read()
+
+        offset = 0
+        for i in range(len(ram_content)):
+            if i + 2 > len(ram_content) - 1:
+                break
+            if ram_content[i:i+2] == b'\Q':
+                offset = i
+
+        userdata = ram_content[offset:][:512]
+        stat = int.from_bytes(userdata[58:58+2], "big")
+        data = {
+            "ESC_SN": userdata[32:32+14].decode('ascii'),
+            "ESC_UUID": userdata[436:436+12].hex().upper(),
+            "ESC_TOTAL_MILEAGE": int.from_bytes(userdata[82:82+4], "little")/1000,
+            "ESC_STAT": "Activated (8)" if stat == 8 else stat
+        }
+        
+        sfprint("Found the following information from the controller:")
+        for k, v in data.items():
+            sfprint(f"{k}: {v}")
+
+        cuted_ram = self.get_cuted_ram_path()
+        with open(cuted_ram, "wb") as fh:
+            fh.write(userdata)
+        
+        return cuted_ram
+    
     def generate_userdata_ble(self) -> str:
         userdata = bytearray(23)
         userdata[0:1] = b'U\xaa'
@@ -171,29 +227,37 @@ class Flasher:
         elif target == "BLE":
             bootloader_file = f"{brand}_BLE.bin" if self.fake_chip or self.device not in V2_BLE_PREFIX else f"{brand}_BLE_V2.bin"
         if os.path.exists(os.path.join(CONFIG_DIRECTORY, "binaries", "bootloader", bootloader_file)):
-            return os.path.join(CONFIG_DIRECTORY, "binaries", "bootloader", bootloader_file)
+            return os.path.join(CONFIG_DIRECTORY, "binaries", "bootloader", bootloader_file).replace(os.sep, '/')
         else:
-            return os.path.join("./binaries/bootloader", bootloader_file)
+            return os.path.join("./binaries/bootloader", bootloader_file).replace(os.sep, '/')
 
     def get_firmware_path(self, target) -> str:
         firmware_file = self.custom_fw if self.custom_fw else f"{self.device}_{target}.bin"
-        return os.path.join(CONFIG_DIRECTORY, "binaries", "firmware", firmware_file)
+        return os.path.join(CONFIG_DIRECTORY, "binaries", "firmware", firmware_file).replace(os.sep, '/')
     
     def get_uicr_file(self) -> str:
         uicr_file = "UICR.bin" if self.fake_chip or self.device not in V2_BLE_PREFIX else "UICR_32K.bin"
         if os.path.exists(os.path.join(CONFIG_DIRECTORY, "binaries", uicr_file)):
-            return os.path.join(CONFIG_DIRECTORY, "binaries", uicr_file)
+            return os.path.join(CONFIG_DIRECTORY, "binaries", uicr_file).replace(os.sep, '/')
         else:
-            return os.path.join("./binaries", uicr_file)
+            return os.path.join("./binaries", uicr_file).replace(os.sep, '/')
         
     def get_esc_target_args(self) -> list:
         if self.fake_chip and self.device in XIAOMI_DEV:
-            return ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c "init"']
+            return ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c', 'init']
         elif self.fake_chip and self.device in NINEBOT_DEV:
-            return ["-f", "oocd/scripts/target/at32.cfg", '-c "init"', '-c "reset halt"']
+            return ["-f", "oocd/scripts/target/at32.cfg", '-c', 'init', '-c', 'reset halt',]
         else:
-            return ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c "init"', '-c "reset halt"']
+            return ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c', 'init', '-c', 'reset halt',]
     
     @staticmethod
     def get_userdata_location() -> str:
-        return os.path.join(CONFIG_DIRECTORY, "tmp", "data_tmp.bin")
+        return os.path.join(CONFIG_DIRECTORY, "tmp", "data_tmp.bin").replace(os.sep, '/')
+    
+    @staticmethod
+    def get_ram_path() -> str:
+        return os.path.join(CONFIG_DIRECTORY, "tmp", "RAM.bin").replace(os.sep, '/')
+    
+    @staticmethod
+    def get_cuted_ram_path() -> str:
+        return os.path.join(CONFIG_DIRECTORY, "tmp", "RAM_cuted.bin").replace(os.sep, '/')

@@ -12,7 +12,7 @@ for dir in ["binaries/firmware", "tmp"]:
     os.makedirs(os.path.join(CONFIG_DIRECTORY, dir), exist_ok=True)
 
 args = parse_args()
-flash = Flasher(args.device, args.sn, args.fake_chip, args.custom_fw, args.openocd)
+flash = Flasher(args.device, args.sn, args.fake_chip, args.extract_data, args.custom_fw, args.openocd)
 check_update()
 
 if args.target == "ESC":

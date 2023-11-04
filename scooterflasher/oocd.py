@@ -40,7 +40,7 @@ class OpenOCD:
         while True:
             output = _process.stderr.readline().strip()
             return_code = _process.poll()
-            if return_code:
+            if return_code is not None:
                 break
             if output:
                 failed = self.parse_logs(output.decode("utf-8"))

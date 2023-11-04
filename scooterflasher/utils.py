@@ -13,6 +13,24 @@ NINEBOT_DEV = [
     "max", "esx", "e", "f", "t15"
 ]
 
+FAKEDRV_DEV = [
+    "pro2", "1s", "lite", "mi3", "max", "f"
+]
+
+DEFAULT_ESC_SN = {
+    "m365": "16133/00000000",
+    "pro": "21886/00000000",
+    "pro2": "26354/00000000",
+    "1s": "25699/00000000",
+    "lite": "25600/00000000",
+    "mi3": "32124/00000000",
+    "max": "N4GSD0000C0000",
+    "esx": "N2GSD0000C0000",
+    "e": "N2GQD0000C0000",
+    "f": "N5GED0000C0000",
+    "t15": "N3GCD0000C0000"
+}
+
 OPENOCD_ERRORS = [
     {
         "error": "Error: open failed",
@@ -96,13 +114,14 @@ def parse_args():
                         required=True, type=str.lower, choices=NINEBOT_DEV+XIAOMI_DEV)
     parser.add_argument("--target", choices=["BLE", "ESC"], type=str.upper, required=True)
     parser.add_argument("--sn",
-                        help="Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.",
-                        required=True)
+                        help="Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.")
     parser.add_argument("--km",
                         help="Mileage to set when flashing ECU.",
                         default=0, type=float)
     parser.add_argument("--fake-chip", action="store_true",
                         help="GD32 (or AT32 if it's Ninebot) instead of STM32 chip when flashing ECU. 16k RAM instead of 32k RAM for fake dashboard when flashing BLE.")
+    parser.add_argument("--extract-data", action="store_true",
+                        help="Extract all data from ECU during flash. If enabled, there is no need to complete the data for the controller.")
     parser.add_argument("--extract-uid", action="store_true",
                         help="Extract chip UID during flashing")
     parser.add_argument("--activate-ecu", action="store_true",
@@ -115,4 +134,15 @@ def parse_args():
                         help="Custom firmware to flash instead of an official")
     
     args = parser.parse_args()
+    if args.target == "ESC":
+        if not args.extract_data and not args.sn:
+            sfprint(f"No serial number is given, the program will use the default one. {DEFAULT_ESC_SN[args.device]} for {args.device}")
+            args.sn = DEFAULT_ESC_SN[args.device]
+    elif args.target == "BLE":
+        if not args.sn:
+            sfprint("No displayed name is given for the display. The program will use the default one.")
+            if args.device in XIAOMI_DEV:
+                args.sn = "MIScooter0000"
+            elif args.device in NINEBOT_DEV:
+                args.sn = "NBScooter0000"
     return args
