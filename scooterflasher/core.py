@@ -96,7 +96,7 @@ class Flasher:
         args = self.get_esc_target_args()[:4]
 
         args += ['-c', 'dump_image ' + ram_file + ' 0x20000000 0x7D00']
-        args.append('-c', 'exit')
+        args += ['-c', 'exit']
         return self.openocd.run(args)
 
     def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0) -> None:
