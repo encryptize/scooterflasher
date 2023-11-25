@@ -62,13 +62,13 @@ def check_update():
     # Check updates for ScooterHacking Firmware Repository
     if time.time() - config['FW_LAST_CHECK'] > 86400:
         fw_req = requests.get(FIRMWARE_API, headers=REQUESTS_HEADERS, params={
-            "last_update": datetime.fromtimestamp(config['LAST_CHECK'])
+            "last_update": datetime.fromtimestamp(config['FW_LAST_CHECK'])
         })
         fw_req.raise_for_status()
         fw_json = fw_req.json()
         if len(fw_json['data']) > 0:
             if ask_user("There is an update available for the firmware database. Do you want to update it now?"):
                 update_firmwares(fw_json)
-                config['FW_LAST_CHECK'] = time.time()
+                config['FW_LAST_CHECK'] = datetime.fromisoformat(fw_json['last_update']).timestamp()
 
     update_config(config)
