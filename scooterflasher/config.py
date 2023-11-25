@@ -7,14 +7,12 @@ import json
 CONFIG_DIRECTORY = os.path.join(os.path.expanduser("~"), ".scooterflasher")
 CONFIG_LOCATION = os.path.join(CONFIG_DIRECTORY, "config.json")
 CONFIG_TEMPLATE = {
-    "ALLOW_GITHUB_UPDATES": False,
-    "LAST_CHECK": 0,
-    "LAST_COMMITS": {
-        "Firmware": ""
-    }
+    "ALLOW_UPDATES": False,
+    "SF_LAST_CHECK": 0,
+    "FW_LAST_CHECK": 0
 }
 QUESTIONS_TEMPLATE = {
-    "ALLOW_GITHUB_UPDATES": "This program offers the ability to inform you of updates to the program and the database of files used to flash the scooters. For this purpose, it connects to the servers of the GitHub.com service. Do you agree to automatically check for updates every time you run the program, once a day?"
+    "ALLOW_UPDATES": "This program offers the ability to inform you of updates to the program and the database of files used to flash the scooters. For this purpose, it connects to the servers of GitHub.com, scooterflasher.encryptize.ovh and ScooterHacking.org. Do you agree to automatically check for the availability of updates each time you run the program, at most once a day?"
 }
 
 def ask_user(question: str) -> bool:
