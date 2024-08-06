@@ -5,17 +5,17 @@ import argparse
 import sys
 
 XIAOMI_DEV = [
-    "m365", "pro", "pro2", "1s", "lite", "mi3"
+    "m365", "pro", "pro2", "1s", "lite", "mi3",
 ]
 V2_BLE_PREFIX = [
-    "pro2", "1s", "lite", "mi3"
+    "pro2", "1s", "lite", "mi3",
 ]
 NINEBOT_DEV = [
-    "max", "esx", "e", "f", "t15", "g2", "4pro"
+    "max", "esx", "e", "f", "t15", "g2", "4pro", "f2",
 ]
 
 FAKEDRV_DEV = [
-    "pro2", "1s", "lite", "mi3", "max", "f"
+    "pro2", "1s", "lite", "mi3", "max", "f", "g2", "f2",
 ]
 
 DEFAULT_ESC_SN = {
@@ -31,7 +31,8 @@ DEFAULT_ESC_SN = {
     "e": "N2GQD0000C0000",
     "f": "N5GED0000C0000",
     "t15": "N3GCD0000C0000",
-    "g2": "01GXD0000C0000"
+    "g2": "01GXD0000C0000",
+    "f2": "NAGRA0000C0000",
 }
 
 OPENOCD_ERRORS = [
