@@ -2,6 +2,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import sys
 
 XIAOMI_DEV = [
     "m365", "pro", "pro2", "1s", "lite", "mi3"
@@ -10,7 +11,7 @@ V2_BLE_PREFIX = [
     "pro2", "1s", "lite", "mi3"
 ]
 NINEBOT_DEV = [
-    "max", "esx", "e", "f", "t15"
+    "max", "esx", "e", "f", "t15", "g2"
 ]
 
 FAKEDRV_DEV = [
@@ -28,7 +29,8 @@ DEFAULT_ESC_SN = {
     "esx": "N2GSD0000C0000",
     "e": "N2GQD0000C0000",
     "f": "N5GED0000C0000",
-    "t15": "N3GCD0000C0000"
+    "t15": "N3GCD0000C0000",
+    "g2": "01GXD0000C0000"
 }
 
 OPENOCD_ERRORS = [
@@ -132,13 +134,18 @@ def parse_args():
                         help="Location of openocd binary.")
     parser.add_argument('--custom-fw', '--cfw',
                         help="Custom firmware to flash instead of an official")
+    parser.add_argument("--custom-ram", "--cram",
+                        help="Flash custom RAM dump instead of generated or extracted by program")
     
     args = parser.parse_args()
     if args.target == "ESC":
-        if not args.extract_data and not args.sn:
+        if not args.extract_data and not args.custom_ram and not args.sn:
             sfprint(f"No serial number is given, the program will use the default one. {DEFAULT_ESC_SN[args.device]} for {args.device}")
             args.sn = DEFAULT_ESC_SN[args.device]
     elif args.target == "BLE":
+        if args.device == "g2":
+            sfprint(f"BLE flashing is not currently supported for this model ({args.device})!")
+            sys.exit(1)
         if not args.sn:
             sfprint("No displayed name is given for the display. The program will use the default one.")
             if args.device in XIAOMI_DEV:

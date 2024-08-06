@@ -17,12 +17,13 @@ from scooterflasher.config import CONFIG_DIRECTORY
 class Flasher:
     def __init__(self, device: str, sn: str, fake_chip: bool = False, 
                  extract_data: bool = False, custom_fw: str = None, 
-                 openocd_path: str = None) -> None:
+                 custom_ram: str = None, openocd_path: str = None) -> None:
         self.device = device
         self.sn = sn
         self.fake_chip = fake_chip
         self.extract_data = extract_data
         self.custom_fw = custom_fw
+        self.custom_ram = custom_ram
         self.openocd = OpenOCD(openocd_path)
 
     def unlock_gd32(self) -> bool:
@@ -32,7 +33,7 @@ class Flasher:
     
     def read_uid_stm32(self) -> bool:
         sfprint("Reading STM32 UID")
-        uid_file = os.path.join(CONFIG_DIRECTORY, "uid.bin").replace(os.sep, '/')
+        uid_file = os.path.join(CONFIG_DIRECTORY, "tmp", "uid.bin").replace(os.sep, '/')
         args = self.get_esc_target_args()
         args += ['-c', 'flash probe 0', '-c', 'stm32f1x unlock 0', '-c', 'reset halt', 
                  '-c', 'dump_image ' + uid_file + ' 0x1FFFF7E8 12', '-c', 'exit']
@@ -47,7 +48,7 @@ class Flasher:
         
         bootloader_file = self.get_bootloader_path("ESC", brand)
         firmware_file = self.get_firmware_path("ESC")
-        user_data = self.get_cuted_ram_path() if self.extract_data else self.get_userdata_location()
+        user_data = self.get_cuted_ram_path() if self.extract_data or self.custom_ram else self.get_userdata_location()
 
         args = self.get_esc_target_args()
         args += ['-c', 'flash probe 0', '-c', 'stm32f1x unlock 0', '-c', 'reset halt', '-c', 'stm32f1x mass_erase 0']
@@ -102,7 +103,7 @@ class Flasher:
     def flash_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float = 0) -> None:
         if self.fake_chip and self.device not in FAKEDRV_DEV:
             raise RuntimeError(f"{self.device} doesn't have a fake chip")
-        if not self.extract_data:
+        if not self.extract_data and not self.custom_ram:
             if mileage < 0 or mileage > 30000:
                 raise ValueError("Mileage must be between 0 and 30000km")
             if len(self.sn) != 14:
@@ -123,6 +124,8 @@ class Flasher:
             # if not extracted, stop
             if not self.dump_ram_stm32():
                 sys.exit(1)
+            self.parse_userdata_esc_ram()
+        elif self.custom_ram:
             self.parse_userdata_esc_ram()
         else:
             if extract_uid:
@@ -171,7 +174,7 @@ class Flasher:
         return tmp_userdata
     
     def parse_userdata_esc_ram(self) -> str:
-        ram_path = self.get_ram_path()
+        ram_path = self.get_ram_path() if not self.custom_ram else self.custom_ram
         if not os.path.isfile(ram_path):
             raise RuntimeError("No RAM dump file found")
         
@@ -232,7 +235,9 @@ class Flasher:
             return os.path.join("./binaries/bootloader", bootloader_file).replace(os.sep, '/')
 
     def get_firmware_path(self, target) -> str:
-        firmware_file = self.custom_fw if self.custom_fw else f"{self.device}_{target}.bin"
+        if self.custom_fw:
+            return self.custom_fw.replace(os.sep, '/')
+        firmware_file = f"{self.device}_{target}.bin"
         return os.path.join(CONFIG_DIRECTORY, "binaries", "firmware", firmware_file).replace(os.sep, '/')
     
     def get_uicr_file(self) -> str:
