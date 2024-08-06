@@ -11,7 +11,7 @@ V2_BLE_PREFIX = [
     "pro2", "1s", "lite", "mi3"
 ]
 NINEBOT_DEV = [
-    "max", "esx", "e", "f", "t15", "g2"
+    "max", "esx", "e", "f", "t15", "g2", "4pro"
 ]
 
 FAKEDRV_DEV = [
@@ -25,6 +25,7 @@ DEFAULT_ESC_SN = {
     "1s": "25699/00000000",
     "lite": "25600/00000000",
     "mi3": "32124/00000000",
+    "4pro": "35802/CHA00000000000",
     "max": "N4GSD0000C0000",
     "esx": "N2GSD0000C0000",
     "e": "N2GQD0000C0000",

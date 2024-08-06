@@ -106,13 +106,17 @@ class Flasher:
         if not self.extract_data and not self.custom_ram:
             if mileage < 0 or mileage > 30000:
                 raise ValueError("Mileage must be between 0 and 30000km")
-            if len(self.sn) != 14:
+            if len(self.sn) != 14 and self.device != "4pro":
                 raise ValueError(f"SN must be 14-chars long. {self.sn}")
+            elif len(self.sn) != 20 and self.device == "4pro":
+                raise ValueError(f"SN must be 20-chars long. {self.sn}")
             if self.device in XIAOMI_DEV:
                 if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
             elif self.device in NINEBOT_DEV:
-                if not re.match(r"[A-Z0-9]{14}", self.sn):
+                if not re.match(r"[A-Z0-9]{14}", self.sn) and self.device != "4pro":
+                    raise ValueError(f"Invalid SN format. {self.sn}")
+                elif not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
         
         if self.fake_chip and self.device in XIAOMI_DEV:
@@ -158,7 +162,8 @@ class Flasher:
         userdata = bytearray(1023)
         userdata[0:1] = b'\Q'
 
-        userdata[32:32+len(self.sn)] = self.sn.encode(encoding="ascii")
+        sn_offset = 168 if self.device == "4pro" else 32
+        userdata[sn_offset:sn_offset+len(self.sn)] = self.sn.encode(encoding="ascii")
         if extract_uid:
             with open(os.path.join(CONFIG_DIRECTORY, "tmp", "uid.bin"), mode='rb') as uf:
                 userdata[436:436+12] = uf.read()
@@ -189,9 +194,11 @@ class Flasher:
                 offset = i
 
         userdata = ram_content[offset:][:512]
+        sn_offset = 168 if self.device == "4pro" else 32
+        sn_len = 20 if self.device == "4pro" else 14
         stat = int.from_bytes(userdata[58:58+2], "big")
         data = {
-            "ESC_SN": userdata[32:32+14].decode('ascii'),
+            "ESC_SN": userdata[sn_offset:sn_offset+sn_len].decode('ascii'),
             "ESC_UUID": userdata[436:436+12].hex().upper(),
             "ESC_TOTAL_MILEAGE": int.from_bytes(userdata[82:82+4], "little")/1000,
             "ESC_STAT": "Activated (8)" if stat == 8 else stat
