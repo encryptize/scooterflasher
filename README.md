@@ -17,10 +17,7 @@ It's easy! All you need is to have Python version 3.11 at least installed on you
  ```bash
  pip install requests
  ```
- 3. Download firmware base during first flash, or do it manually with:
-  ```bash
- python update_fw.py
- ```
+ 3. Download firmware base during first flash.
 4. Now you are ready to use ScooterFlasher!
 
 # Examples
@@ -37,8 +34,27 @@ Flash BLE in Xiaomi Pro 2 with fast mode:
 python -m scooterflasher --device pro2 --target BLE --sn MiScooter0000 --fast-mode
 ```
 You can find more available options for ScooterFlasher using:
-```bash
-python -m scooterflasher --help
+```
+python -m scooterflasher -h
+usage: __main__.py [-h] --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3} --target {BLE,ESC} [--sn SN] [--km KM] [--fake-chip] [--extract-data] [--extract-uid] [--activate-ecu] [--fast-mode] [--openocd OPENOCD] [--custom-fw CUSTOM_FW] [--custom-ram CUSTOM_RAM]
+                                                                                                                                                                                                                                                                                  
+options:                                                                                                                                                                                                                                                                          
+  -h, --help            show this help message and exit                                                                                                                                                                                                                           
+  --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3}, -d {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3}                                                                                                                                                      
+                        Dev name of scooter. List of models could be find here: https://wiki.scooterhacking.org/doku.php?id=zip3#in-use_values                                                                                                                                    
+  --target {BLE,ESC}                                                                                                                                                                                                                                                              
+  --sn SN               Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.                                                                                                                                                                      
+  --km KM               Mileage to set when flashing ECU.                                                                                                                                                                                                                         
+  --fake-chip           GD32 (or AT32 if it's Ninebot) instead of STM32 chip when flashing ECU. 16k RAM instead of 32k RAM for fake dashboard when flashing BLE.                                                                                                                  
+  --extract-data        Extract all data from ECU during flash. If enabled, there is no need to complete the data for the controller.                                                                                                                                             
+  --extract-uid         Extract chip UID during flashing                                                                                                                                                                                                                          
+  --activate-ecu        Activate ECU during flashing                                                                                                                                                                                                                              
+  --fast-mode, -fm      Use 1000kHz instead of 450kHz (Applies to BLE only)
+  --openocd OPENOCD     Location of openocd binary.
+  --custom-fw CUSTOM_FW, --cfw CUSTOM_FW
+                        Custom firmware to flash instead of an official
+  --custom-ram CUSTOM_RAM, --cram CUSTOM_RAM
+                        Flash custom RAM dump instead of generated or extracted by program
 ```
 
 # TODO
