@@ -116,7 +116,7 @@ class Flasher:
             elif self.device in NINEBOT_DEV:
                 if not re.match(r"[A-Z0-9]{14}", self.sn) and self.device != "4pro":
                     raise ValueError(f"Invalid SN format. {self.sn}")
-                elif not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn):
+                elif not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn) and self.device == "4pro":
                     raise ValueError(f"Invalid SN format. {self.sn}")
         
         if self.fake_chip and self.device in XIAOMI_DEV:
