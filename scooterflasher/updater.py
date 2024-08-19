@@ -18,10 +18,7 @@ SCOOTERFLASHER_RELEASES = "https://api.github.com/repos/encryptize/scooterflashe
 FIRMWARE_API = "https://scooterflasher.encryptize.ovh/api/v1/firmwares/"
 FIRMWARE_DIR = os.path.join(CONFIG_DIRECTORY, "binaries", "firmware")
 REQUESTS_HEADERS = {
-    'User-Agent': f'scooterflasher/{__version__} Python/{python_version()} python-requests/{requests.__version__}', 
-    'Accept-Encoding': 'gzip, deflate, br', 
-    'Accept': '*/*', 
-    'Connection': 'keep-alive'
+    'User-Agent': f'scooterflasher/{__version__} Python/{python_version()} python-requests/{requests.__version__}',
 }
 
 def download_firmware(filename: str, url: str) -> str:
