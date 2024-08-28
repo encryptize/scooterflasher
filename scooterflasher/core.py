@@ -58,7 +58,7 @@ class Flasher:
         if self.device in NINEBOT_DEV:
             args += ['-c', 'flash write_bank 0 ' + user_data + ' 0x1C000']
         elif self.device in XIAOMI_DEV:
-            args += ['-c', 'flash write_bank 0 ' + user_data + ' 0xF80']
+            args += ['-c', 'flash write_bank 0 ' + user_data + ' 0xF800']
 
         args += ['-c', 'reset run', '-c', 'exit']
         return self.openocd.run(args)
