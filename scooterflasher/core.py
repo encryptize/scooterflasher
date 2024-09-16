@@ -10,7 +10,7 @@ import os
 import sys
 import re
 
-from scooterflasher.utils import sfprint, XIAOMI_DEV, NINEBOT_DEV, V2_BLE_PREFIX, FAKEDRV_DEV
+from scooterflasher.utils import sfprint, XIAOMI_DEV, XIAOMI_V2_DEV, NINEBOT_DEV, V2_BLE_PREFIX, FAKEDRV_DEV
 from scooterflasher.oocd import OpenOCD
 from scooterflasher.config import CONFIG_DIRECTORY
 
@@ -43,7 +43,7 @@ class Flasher:
         sfprint("Writing to chip")
         if self.device in XIAOMI_DEV:
             brand = "mi"
-        elif self.device in NINEBOT_DEV:
+        elif self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
             brand = "nb"
         
         bootloader_file = self.get_bootloader_path("ESC", brand)
@@ -55,7 +55,7 @@ class Flasher:
         args += ['-c', 'flash write_bank 0 ' + bootloader_file]
         args += ['-c', 'flash write_bank 0 ' + firmware_file + ' 0x1000']
         
-        if self.device in NINEBOT_DEV:
+        if self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
             args += ['-c', 'flash write_bank 0 ' + user_data + ' 0x1C000']
         elif self.device in XIAOMI_DEV:
             args += ['-c', 'flash write_bank 0 ' + user_data + ' 0xF800']
@@ -68,7 +68,7 @@ class Flasher:
 
         if self.device in XIAOMI_DEV:
             brand = "mi"
-        elif self.device in NINEBOT_DEV:
+        elif self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
             brand = "nb"
         
         bootloader_file = self.get_bootloader_path("BLE", brand)
@@ -106,17 +106,18 @@ class Flasher:
         if not self.extract_data and not self.custom_ram:
             if mileage < 0 or mileage > 30000:
                 raise ValueError("Mileage must be between 0 and 30000km")
-            if len(self.sn) != 14 and self.device != "4pro":
+            if len(self.sn) != 14 and (self.device != "4pro" or self.device not in XIAOMI_V2_DEV):
                 raise ValueError(f"SN must be 14-chars long. {self.sn}")
-            elif len(self.sn) != 20 and self.device == "4pro":
+            elif len(self.sn) != 20 and (self.device == "4pro" or self.device in XIAOMI_V2_DEV):
                 raise ValueError(f"SN must be 20-chars long. {self.sn}")
             if self.device in XIAOMI_DEV:
                 if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
-            elif self.device in NINEBOT_DEV:
-                if not re.match(r"[A-Z0-9]{14}", self.sn) and self.device != "4pro":
+            elif self.device == "4pro" or self.device in XIAOMI_V2_DEV:
+                if not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
-                elif not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn) and self.device == "4pro":
+            elif self.device in NINEBOT_DEV:
+                if not re.match(r"[A-Z0-9]{14}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
         
         if self.fake_chip and self.device in XIAOMI_DEV:
@@ -160,9 +161,9 @@ class Flasher:
         
     def generate_userdata_esc(self, extract_uid: bool, activate_ecu: bool, mileage: float) -> str:
         userdata = bytearray(1023)
-        userdata[0:1] = b'\Q'
+        userdata[0:3] = b"\x5C\x51\xEE\x07"
 
-        sn_offset = 168 if self.device == "4pro" else 32
+        sn_offset = 168 if self.device == "4pro" or self.device in XIAOMI_V2_DEV else 32
         userdata[sn_offset:sn_offset+len(self.sn)] = self.sn.encode(encoding="ascii")
         if extract_uid:
             with open(os.path.join(CONFIG_DIRECTORY, "tmp", "uid.bin"), mode='rb') as uf:
@@ -187,15 +188,19 @@ class Flasher:
             ram_content = fh.read()
 
         offset = 0
+        conf_sig = b"\x5C\x51\xEE\x07"
         for i in range(len(ram_content)):
-            if i + 2 > len(ram_content) - 1:
+            if i + len(conf_sig) > len(ram_content) - 1:
                 break
-            if ram_content[i:i+2] == b'\Q':
+            if ram_content[i:i+len(conf_sig)] == conf_sig:
                 offset = i
 
         userdata = ram_content[offset:][:512]
-        sn_offset = 168 if self.device == "4pro" else 32
-        sn_len = 20 if self.device == "4pro" else 14
+        sn_offset = 32
+        sn_len = 20
+        if self.device == "4pro" or self.device in XIAOMI_V2_DEV:
+            sn_offset = 168
+            sn_len = 20
         stat = int.from_bytes(userdata[58:58+2], "big")
         data = {
             "ESC_SN": userdata[sn_offset:sn_offset+sn_len].decode('ascii'),
@@ -230,7 +235,7 @@ class Flasher:
         if target == "ESC":
             if self.fake_chip and self.device in XIAOMI_DEV:
                 bootloader_file = f"{brand}_DRV_GD32.bin" 
-            elif self.fake_chip and self.device in NINEBOT_DEV:
+            elif self.fake_chip and self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
                 bootloader_file = f"{brand}_DRV_AT32.bin" 
             else:
                 bootloader_file = f"{brand}_DRV.bin"
@@ -257,7 +262,7 @@ class Flasher:
     def get_esc_target_args(self) -> list:
         if self.fake_chip and self.device in XIAOMI_DEV:
             return ["-f", "oocd/scripts/target/stm32f1x-nocpuid.cfg", '-c', 'init']
-        elif self.fake_chip and self.device in NINEBOT_DEV:
+        elif self.fake_chip and self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
             return ["-f", "oocd/scripts/target/at32.cfg", '-c', 'init', '-c', 'reset halt',]
         else:
             return ["-f", "oocd/scripts/target/stm32f1x.cfg", '-c', 'init', '-c', 'reset halt',]

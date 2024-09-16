@@ -7,6 +7,11 @@ import sys
 XIAOMI_DEV = [
     "m365", "pro", "pro2", "1s", "lite", "mi3",
 ]
+
+XIAOMI_V2_DEV = [
+    "4proplus", "4promax"
+]
+
 V2_BLE_PREFIX = [
     "pro2", "1s", "lite", "mi3",
 ]
@@ -16,7 +21,7 @@ NINEBOT_DEV = [
 
 FAKEDRV_DEV = [
     "pro2", "1s", "lite", "mi3", "max", "f", "g2", "f2",
-]
+] + XIAOMI_V2_DEV
 
 DEFAULT_ESC_SN = {
     "m365": "16133/00000000",
@@ -33,6 +38,7 @@ DEFAULT_ESC_SN = {
     "t15": "N3GCD0000C0000",
     "g2": "01GXD0000C0000",
     "f2": "NAGRA0000C0000",
+    "4promax": "50967/CHAL0000000000"
 }
 
 OPENOCD_ERRORS = [
@@ -115,7 +121,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", "-d", 
                         help="Dev name of scooter. List of models could be find here: https://wiki.scooterhacking.org/doku.php?id=zip3#in-use_values",
-                        required=True, type=str.lower, choices=NINEBOT_DEV+XIAOMI_DEV)
+                        required=True, type=str.lower, choices=NINEBOT_DEV+XIAOMI_DEV+XIAOMI_V2_DEV)
     parser.add_argument("--target", choices=["BLE", "ESC"], type=str.upper, required=True)
     parser.add_argument("--sn",
                         help="Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.")
