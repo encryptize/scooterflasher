@@ -36,19 +36,20 @@ python -m scooterflasher --device pro2 --target BLE --sn MiScooter0000 --fast-mo
 You can find more available options for ScooterFlasher using:
 ```
 python -m scooterflasher -h
-usage: __main__.py [-h] --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3} --target {BLE,ESC} [--sn SN] [--km KM] [--fake-chip] [--extract-data] [--extract-uid] [--activate-ecu] [--fast-mode] [--openocd OPENOCD] [--custom-fw CUSTOM_FW] [--custom-ram CUSTOM_RAM]
-                                                                                                                                                                                                                                                                                  
-options:                                                                                                                                                                                                                                                                          
-  -h, --help            show this help message and exit                                                                                                                                                                                                                           
-  --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3}, -d {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3}                                                                                                                                                      
-                        Dev name of scooter. List of models could be find here: https://wiki.scooterhacking.org/doku.php?id=zip3#in-use_values                                                                                                                                    
-  --target {BLE,ESC}                                                                                                                                                                                                                                                              
-  --sn SN               Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.                                                                                                                                                                      
-  --km KM               Mileage to set when flashing ECU.                                                                                                                                                                                                                         
-  --fake-chip           GD32 (or AT32 if it's Ninebot) instead of STM32 chip when flashing ECU. 16k RAM instead of 32k RAM for fake dashboard when flashing BLE.                                                                                                                  
-  --extract-data        Extract all data from ECU during flash. If enabled, there is no need to complete the data for the controller.                                                                                                                                             
-  --extract-uid         Extract chip UID during flashing                                                                                                                                                                                                                          
-  --activate-ecu        Activate ECU during flashing                                                                                                                                                                                                                              
+usage: __main__.py [-h] --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3,4proplus,4promax} --target {BLE,ESC} [--sn SN] [--km KM] [--fake-chip]
+                   [--extract-data] [--extract-uid] [--activate-ecu] [--fast-mode] [--openocd OPENOCD] [--custom-fw CUSTOM_FW] [--custom-ram CUSTOM_RAM]
+
+options:
+  -h, --help            show this help message and exit
+  --device {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3,4proplus,4promax}, -d {max,esx,e,f,t15,g2,4pro,f2,m365,pro,pro2,1s,lite,mi3,4proplus,4promax}
+                        Dev name of scooter. List of models could be find here: https://wiki.scooterhacking.org/doku.php?id=zip3#in-use_values
+  --target {BLE,ESC}
+  --sn SN               Serial number to set when flashing ESC. Displayed name of scooter when flashing BLE.
+  --km KM               Mileage to set when flashing ECU.
+  --fake-chip           GD32 (or AT32 if it's Ninebot) instead of STM32 chip when flashing ECU. 16k RAM instead of 32k RAM for fake dashboard when flashing BLE.
+  --extract-data        Extract all data from ECU during flash. If enabled, there is no need to complete the data for the controller.
+  --extract-uid         Extract chip UID during flashing
+  --activate-ecu        Activate ECU during flashing
   --fast-mode, -fm      Use 1000kHz instead of 450kHz (Applies to BLE only)
   --openocd OPENOCD     Location of openocd binary.
   --custom-fw CUSTOM_FW, --cfw CUSTOM_FW
