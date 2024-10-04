@@ -106,14 +106,14 @@ class Flasher:
         if not self.extract_data and not self.custom_ram:
             if mileage < 0 or mileage > 30000:
                 raise ValueError("Mileage must be between 0 and 30000km")
-            if len(self.sn) != 14 and (self.device != "4pro" or self.device not in XIAOMI_V2_DEV):
+            if len(self.sn) != 14 and self.device not in XIAOMI_V2_DEV:
                 raise ValueError(f"SN must be 14-chars long. {self.sn}")
-            elif len(self.sn) != 20 and (self.device == "4pro" or self.device in XIAOMI_V2_DEV):
+            elif len(self.sn) != 20 and self.device in XIAOMI_V2_DEV:
                 raise ValueError(f"SN must be 20-chars long. {self.sn}")
             if self.device in XIAOMI_DEV:
                 if not re.match(r"[0-9]{5}\/[0-9]{8}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
-            elif self.device == "4pro" or self.device in XIAOMI_V2_DEV:
+            elif self.device in XIAOMI_V2_DEV:
                 if not re.match(r"[0-9]{5}\/[A-Z0-9]{14}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
             elif self.device in NINEBOT_DEV:
@@ -163,7 +163,7 @@ class Flasher:
         userdata = bytearray(1023)
         userdata[0:3] = b"\x5C\x51\xEE\x07"
 
-        sn_offset = 168 if self.device == "4pro" or self.device in XIAOMI_V2_DEV else 32
+        sn_offset = 168 if self.device in XIAOMI_V2_DEV else 32
         userdata[sn_offset:sn_offset+len(self.sn)] = self.sn.encode(encoding="ascii")
         if extract_uid:
             with open(os.path.join(CONFIG_DIRECTORY, "tmp", "uid.bin"), mode='rb') as uf:
@@ -198,7 +198,7 @@ class Flasher:
         userdata = ram_content[offset:][:512]
         sn_offset = 32
         sn_len = 20
-        if self.device == "4pro" or self.device in XIAOMI_V2_DEV:
+        if self.device in XIAOMI_V2_DEV:
             sn_offset = 168
             sn_len = 20
         stat = int.from_bytes(userdata[58:58+2], "big")
@@ -249,7 +249,8 @@ class Flasher:
     def get_firmware_path(self, target) -> str:
         if self.custom_fw:
             return self.custom_fw.replace(os.sep, '/')
-        firmware_file = f"{self.device}_{target}.bin"
+        device = "f2" if self.device.startswith("f2") else self.device
+        firmware_file = f"{device}_{target}.bin"
         return os.path.join(CONFIG_DIRECTORY, "binaries", "firmware", firmware_file).replace(os.sep, '/')
     
     def get_uicr_file(self) -> str:

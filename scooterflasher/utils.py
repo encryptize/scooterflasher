@@ -9,14 +9,14 @@ XIAOMI_DEV = [
 ]
 
 XIAOMI_V2_DEV = [
-    "4proplus", "4promax"
+    "4pro", "4proplus", "4promax"
 ]
 
 V2_BLE_PREFIX = [
     "pro2", "1s", "lite", "mi3",
 ]
 NINEBOT_DEV = [
-    "max", "esx", "e", "f", "t15", "g2", "4pro", "f2",
+    "max", "esx", "e", "f", "t15", "g2", "f2", "f2plus", "f2pro"
 ]
 
 FAKEDRV_DEV = [
@@ -37,7 +37,10 @@ DEFAULT_ESC_SN = {
     "f": "N5GED0000C0000",
     "t15": "N3GCD0000C0000",
     "g2": "01GXD0000C0000",
-    "f2": "NAGRA0000C0000",
+    "f2": "NAGAA0000C0000",
+    "f2plus": "NAGFA0000C0000",
+    "f2pro": "NAGRA0000C0000",
+    "4proplus": "49316/CHAL0000000000",
     "4promax": "50967/CHAL0000000000"
 }
 
