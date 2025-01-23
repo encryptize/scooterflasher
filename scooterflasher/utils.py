@@ -154,7 +154,7 @@ def parse_args():
             sfprint(f"No serial number is given, the program will use the default one. {DEFAULT_ESC_SN[args.device]} for {args.device}")
             args.sn = DEFAULT_ESC_SN[args.device]
     elif args.target == "BLE":
-        if args.device == "g2":
+        if args.device in ["g2", "f2", "f2plus", "f2pro"] + XIAOMI_V2_DEV:
             sfprint(f"BLE flashing is not currently supported for this model ({args.device})!")
             sys.exit(1)
         if not args.sn:

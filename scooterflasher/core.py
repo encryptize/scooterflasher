@@ -66,10 +66,20 @@ class Flasher:
     def flash_nrf51(self, fast_mode: bool) -> bool:
         sfprint("Writing to chip")
 
+        boot_addr = "0x3C000"
+        fw_addr = "0x18000"
+        user_data_addr = "0x3B400"
+        if self.device in V2_BLE_PREFIX and not self.fake_chip:
+            boot_addr = "0x3D000"
+            fw_addr = "0x1B000"
+            user_data_addr = "0x3B800"
+
         if self.device in XIAOMI_DEV:
             brand = "mi"
-        elif self.device in NINEBOT_DEV+XIAOMI_V2_DEV:
+        elif self.device in NINEBOT_DEV:
             brand = "nb"
+        else:
+            raise RuntimeError(f"Unsupported device for flashing BLE: {self.device}")
         
         bootloader_file = self.get_bootloader_path("BLE", brand)
         firmware_file = self.get_firmware_path("BLE")
@@ -78,13 +88,9 @@ class Flasher:
 
         args = ['-f', 'oocd/scripts/target/nrf51-fast.cfg' if fast_mode else 'oocd/scripts/target/nrf51.cfg',
                 '-c', 'init', '-c', 'reset halt', '-c', 'nrf51 mass_erase 0',
-                '-c', 'program ' + bootloader_file + ' 0x000000 verify']
-        if self.fake_chip or self.device not in V2_BLE_PREFIX:
-            args += ['-c', 'program ' + firmware_file + ' 0x18000 verify',
-                     '-c', 'program ' + user_data + ' 0x23400 verify']
-        else:
-            args += ['-c', 'program ' + firmware_file + ' 0x1B000 verify',
-                     '-c', 'program ' + user_data + ' 0x3B800 verify']
+                '-c', 'program ' + bootloader_file + f' {boot_addr} verify',
+                '-c', 'program ' + firmware_file + f' {fw_addr} verify',
+                '-c', 'program ' + user_data + f' {user_data_addr} verify']
             
         args += ['-c', 'program ' + uicr_file + ' 0x10001000 verify', '-c', 'reset run', '-c', 'exit']
         return self.openocd.run(args)
