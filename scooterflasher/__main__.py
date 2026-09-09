@@ -2,22 +2,69 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 
-from scooterflasher.core import Flasher
-from scooterflasher.utils import parse_args, sfprint
-from scooterflasher.config import CONFIG_DIRECTORY
-from scooterflasher.updater import check_update
 
-for dir in ["binaries/firmware", "tmp"]:
-    os.makedirs(os.path.join(CONFIG_DIRECTORY, dir), exist_ok=True)
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
 
-args = parse_args()
-flash = Flasher(args.device, args.sn, args.fake_chip, args.extract_data, args.custom_fw, args.custom_ram, args.openocd)
-check_update()
+    from scooterflasher.config import CONFIG_DIRECTORY
+    from scooterflasher.utils import parse_args, sfprint
 
-if args.target == "ESC":
-    flash.flash_esc(args.extract_uid, args.activate_ecu, args.km)
-elif args.target == "BLE":
-    if args.fast_mode:
-        sfprint("Warning! Fast mode requires to remove C16 resistor on dashboard. If flashing doesn't work, try without fast mode enabled.")
-    flash.flash_ble(args.fast_mode)
+    for d in ["binaries/firmware", "binaries/bootloader", "tmp"]:
+        os.makedirs(os.path.join(CONFIG_DIRECTORY, d), exist_ok=True)
+
+    # Default to GUI when no CLI args
+    if not argv:
+        from scooterflasher.gui import main as gui_main
+        return gui_main()
+
+    args = parse_args(argv)
+    if args.gui:
+        from scooterflasher.gui import main as gui_main
+        return gui_main()
+
+    from scooterflasher.core import Flasher
+    from scooterflasher.updater import check_update
+
+    flash = Flasher(
+        args.device,
+        args.sn or "",
+        args.fake_chip,
+        args.extract_data,
+        args.custom_fw,
+        args.custom_ram,
+        args.openocd,
+        custom_bootloader=args.custom_bootloader,
+        attach=args.attach,
+    )
+
+    try:
+        check_update()
+    except Exception as e:
+        sfprint(f"Update check skipped: {e}")
+
+    try:
+        if args.unlock:
+            flash.unlock()
+            return 0
+        if args.target == "ESC":
+            flash.flash_esc(args.extract_uid, args.activate_ecu, args.km, unlock_f4=False)
+        elif args.target == "BLE":
+            if args.fast_mode:
+                sfprint(
+                    "Warning! Fast mode requires to remove C16 resistor on dashboard. "
+                    "If flashing doesn't work, try without fast mode enabled."
+                )
+            flash.flash_ble(args.fast_mode)
+        return 0
+    finally:
+        if not args.attach:
+            try:
+                flash.openocd.stop()
+            except Exception:
+                pass
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

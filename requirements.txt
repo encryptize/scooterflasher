@@ -1,1 +1,3 @@
-requests
+# Runtime (local install)
+requests>=2.32.0
+PySide6>=6.8.0
