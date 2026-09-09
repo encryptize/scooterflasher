@@ -127,7 +127,7 @@ class TestUnlockDryRun(unittest.TestCase):
 class TestFlashDryRun(unittest.TestCase):
     def test_flash_f4_combined_image(self):
         oocd, rpc = _oocd_mock()
-        fw = BOOTLOADER_DIR / "4proita_ESC.bin"
+        fw = BOOTLOADER_DIR / "4proita_DRV.bin"
         self.assertTrue(fw.is_file(), f"missing {fw}")
         f = Flasher("4proita", openocd=oocd)
         f.flash_esc()

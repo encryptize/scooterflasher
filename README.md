@@ -18,7 +18,7 @@ pip install -r requirements.txt   # runtime: requests + PySide6
 # optional CI/dev freeze: pip install -r requirements-build.txt
 ```
 
-App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders (and 4proita STM32F4 images) ship in-repo under `binaries/`.
+App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders ship in-repo under `binaries/bootloader/` (including `4proita_DRV.bin` for STM32F4).
 
 ## GUI
 

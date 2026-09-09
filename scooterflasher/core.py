@@ -435,12 +435,10 @@ class Flasher:
             return posix(self.custom_fw)
 
         if self.device in F4_DEV and target == "ESC":
-            # Ship under bootloader/ too (firmware/*.bin is gitignored)
+            # Single shipped image: jump-boot ‖ app (4proita_DRV.bin)
             return self._resolve_binary(
-                BOOTLOADER_DIR / "4proita_ESC.bin",
-                FIRMWARE_DIR / "4proita_ESC.bin",
-                Path(CONFIG_DIRECTORY) / "binaries" / "firmware" / "4proita_ESC.bin",
-                FIRMWARE_DIR / "4proita_ESC_stock.bin",
+                BOOTLOADER_DIR / "4proita_DRV.bin",
+                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "4proita_DRV.bin",
             )
 
         device = "f2" if self.device.startswith("f2") else self.device
