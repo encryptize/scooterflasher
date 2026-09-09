@@ -1,0 +1,3 @@
+# CI / PyInstaller builds (pin for reproducibility)
+-r requirements.txt
+pyinstaller>=6.11.0

@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "scooterflasher"
+version = "0.5.0"
+description = "ST-Link / OpenOCD SWD flasher for Xiaomi and Ninebot scooters"
+authors = ["ScooterTeam"]
+license = "GPL-3.0-or-later"
+readme = "README.md"
+homepage = "https://github.com/scooterteam/scooterflasher"
+repository = "https://github.com/scooterteam/scooterflasher"
+keywords = ["Xiaomi", "Ninebot", "Scooter", "ST-Link", "OpenOCD", "ScooterFlasher"]
+packages = [{include = "scooterflasher"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+requests = "^2.32.0"
+PySide6 = "^6.8.0"
+
+[tool.poetry.group.dev.dependencies]
+pyinstaller = "^6.11.0"
+
+[tool.poetry.scripts]
+scooterflasher = "scooterflasher.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

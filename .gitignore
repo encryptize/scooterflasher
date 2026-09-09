@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 binaries/firmware/*.bin
+!binaries/firmware/4proita_*.bin
