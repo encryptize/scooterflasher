@@ -20,7 +20,7 @@ pip install -r requirements.txt   # runtime: requests + PySide6
 # optional CI/dev freeze: pip install -r requirements-build.txt
 ```
 
-App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders ship in-repo under `binaries/bootloader/` (including `4proita_DRV.bin` for the F4 ESC).
+App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders ship in-repo under `binaries/bootloader/` (including `mi_DRV_STM32F4.bin` for the F4 ESC).
 
 ## GUI
 
@@ -54,7 +54,7 @@ Catalog **`ninebot.scooter.15`** — MCU **STM32F400CBT6** (≈ F410 / RM0401). 
 
 Identity (SN/UUID) lives in **I2C EEPROM**, not MCU flash — ScooterFlasher does not write it. See project docs under `docs/scooters/4pro/` (`f4_jump_boot.md`, `f4_userdata.md`).
 
-Default image: `binaries/bootloader/4proita_DRV.bin` (jump boot @ `0x08000000` ‖ app @ `0x08004000`, patched: no auto-RDP). Equivalent to the kit’s `f4_boot_plus_app_patched.bin`.
+Default image: `binaries/bootloader/mi_DRV_STM32F4.bin` (jump boot @ `0x08000000` ‖ app @ `0x08004000`, patched: no auto-RDP). Equivalent to the kit’s `f4_boot_plus_app_patched.bin`.
 
 ```bash
 # 1) Clear RDP (stm32f2x unlock). Then true POR — cut ESC power; NRST is not enough.

@@ -127,7 +127,7 @@ class TestUnlockDryRun(unittest.TestCase):
 class TestFlashDryRun(unittest.TestCase):
     def test_flash_f4_combined_image(self):
         oocd, rpc = _oocd_mock()
-        fw = BOOTLOADER_DIR / "4proita_DRV.bin"
+        fw = BOOTLOADER_DIR / "mi_DRV_STM32F4.bin"
         self.assertTrue(fw.is_file(), f"missing {fw}")
         f = Flasher("4proita", openocd=oocd)
         f.flash_esc()
@@ -190,7 +190,7 @@ class TestBinaryResolution(unittest.TestCase):
         fw = f.get_firmware_path("ESC")
         self.assertTrue(Path(boot).is_file())
         self.assertTrue(Path(fw).is_file())
-        self.assertTrue(boot.endswith("4proita_DRV.bin") or "4proita_DRV" in boot)
+        self.assertTrue("mi_DRV_STM32F4" in boot)
 
     def test_gd32_bootloader_name(self):
         f = Flasher("mi3", fake_chip=True, openocd=MagicMock())

@@ -397,8 +397,8 @@ class Flasher:
 
         if self.device in F4_DEV and target == "ESC":
             return self._resolve_binary(
-                BOOTLOADER_DIR / "4proita_DRV.bin",
-                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "4proita_DRV.bin",
+                BOOTLOADER_DIR / "mi_DRV_STM32F4.bin",
+                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "mi_DRV_STM32F4.bin",
             )
 
         if self.device in XIAOMI_DEV:
@@ -435,10 +435,10 @@ class Flasher:
             return posix(self.custom_fw)
 
         if self.device in F4_DEV and target == "ESC":
-            # Single shipped image: jump-boot ‖ app (4proita_DRV.bin)
+            # Single shipped image: jump-boot ‖ app (mi_DRV_STM32F4.bin)
             return self._resolve_binary(
-                BOOTLOADER_DIR / "4proita_DRV.bin",
-                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "4proita_DRV.bin",
+                BOOTLOADER_DIR / "mi_DRV_STM32F4.bin",
+                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "mi_DRV_STM32F4.bin",
             )
 
         device = "f2" if self.device.startswith("f2") else self.device

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scooterflasher"
-version = "0.5.0"
+version = "0.5.1"
 description = "ST-Link / OpenOCD SWD flasher for Xiaomi and Ninebot scooters"
 authors = ["ScooterTeam"]
 license = "GPL-3.0-or-later"
