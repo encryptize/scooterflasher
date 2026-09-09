@@ -105,6 +105,16 @@ class Flasher:
         rpc.mww(0x40022010, 0x80)
         self._say("GD32 unlock sequence sent")
 
+    def unlock_stm32(self) -> None:
+        """Clear STM32F1 RDP (standard ESC)."""
+        self._say("Unlocking STM32 (stm32f1x unlock 0)")
+        rpc = self._ensure()
+        rpc.init_halt()
+        rpc.send("flash probe 0")
+        rpc.send("stm32f1x unlock 0")
+        rpc.send("reset halt")
+        self._say("STM32 unlock done (power-cycle if flash still locked)")
+
     def unlock_f4(self) -> str:
         """Clear STM32F4 RDP on 4proita. Caller must POR before flashing."""
         self._say("Unlocking 4proita STM32F4 (stm32f2x unlock 0)")
@@ -116,6 +126,20 @@ class Flasher:
             self.openocd.stop()
         self._say(POR_INSTRUCTIONS)
         return POR_INSTRUCTIONS
+
+    def unlock(self) -> str | None:
+        """Pick unlock path for the current scooter / chip options."""
+        if self.device in F4_DEV:
+            return self.unlock_f4()
+        if self.fake_chip and self.device in XIAOMI_DEV:
+            self.unlock_gd32()
+            return None
+        if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
+            raise RuntimeError(
+                "AT32 has no separate unlock step — use Flash (mass-erase is included)."
+            )
+        self.unlock_stm32()
+        return None
 
     def read_uid_stm32(self) -> bool:
         self._say("Reading STM32 UID")

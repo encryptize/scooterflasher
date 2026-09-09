@@ -38,6 +38,12 @@ from scooterflasher.utils import (
     ALL_DEVICES,
     DEFAULT_ESC_SN,
     F4_DEV,
+    NINEBOT_DEV,
+    XIAOMI_DEV,
+    XIAOMI_V2_DEV,
+    supports_ble,
+    supports_fake_chip,
+    supports_unlock,
 )
 from scooterflasher.version import __version__
 
@@ -45,6 +51,11 @@ from scooterflasher.version import __version__
 def resource_path(*parts: str) -> str:
     base = getattr(sys, "_MEIPASS", str(TOOL_ROOT))
     return os.path.join(base, "resources", *parts)
+
+
+# UI label → internal target
+TARGET_DRV = "DRV"
+TARGET_BLE = "BLE"
 
 
 class FlashWorker(QThread):
@@ -69,8 +80,8 @@ class FlashWorker(QThread):
                 attach=self.opts.get("attach", False),
                 log=lambda m: self.log.emit(str(m)),
             )
-            if self.opts.get("unlock_f4"):
-                flasher.unlock_f4()
+            if self.opts.get("unlock_only"):
+                flasher.unlock()
             elif self.opts["target"] == "ESC":
                 flasher.flash_esc(
                     extract_uid=self.opts.get("extract_uid", False),
@@ -116,17 +127,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(subtitle)
 
         form_box = QGroupBox("Target")
-        form = QFormLayout(form_box)
-        form.setSpacing(10)
-        form.setContentsMargins(8, 12, 8, 8)
+        self.form = QFormLayout(form_box)
+        self.form.setSpacing(10)
+        self.form.setContentsMargins(8, 12, 8, 8)
 
         self.device = QComboBox()
         self.device.addItems(ALL_DEVICES)
         self.target = QComboBox()
-        self.target.addItems(["ESC", "BLE"])
+
         self.sn = QLineEdit()
         self.km = QLineEdit("0")
-        self.fake_chip = QCheckBox("Fake chip (GD32 / AT32 / 16k BLE)")
+        self.fake_chip = QCheckBox("Fake chip (GD32 Xiaomi / AT32 Ninebot · 16k BLE)")
         self.extract_uid = QCheckBox("Extract UID")
         self.activate_ecu = QCheckBox("Activate ECU")
         self.extract_data = QCheckBox("Extract ESC data from RAM")
@@ -145,44 +156,50 @@ class MainWindow(QMainWindow):
             b.clicked.connect(slot)
             return b
 
-        fw_row = QHBoxLayout()
-        fw_row.setSpacing(8)
-        fw_row.addWidget(self.custom_fw)
-        fw_row.addWidget(browse_btn(lambda: self._browse(self.custom_fw)))
+        self.fw_row = QWidget()
+        fw_l = QHBoxLayout(self.fw_row)
+        fw_l.setContentsMargins(0, 0, 0, 0)
+        fw_l.setSpacing(8)
+        fw_l.addWidget(self.custom_fw)
+        fw_l.addWidget(browse_btn(lambda: self._browse(self.custom_fw)))
 
-        bl_row = QHBoxLayout()
-        bl_row.setSpacing(8)
-        bl_row.addWidget(self.custom_bl)
-        bl_row.addWidget(browse_btn(lambda: self._browse(self.custom_bl)))
+        self.bl_row = QWidget()
+        bl_l = QHBoxLayout(self.bl_row)
+        bl_l.setContentsMargins(0, 0, 0, 0)
+        bl_l.setSpacing(8)
+        bl_l.addWidget(self.custom_bl)
+        bl_l.addWidget(browse_btn(lambda: self._browse(self.custom_bl)))
 
-        ocd_row = QHBoxLayout()
-        ocd_row.setSpacing(8)
-        ocd_row.addWidget(self.openocd_path)
-        ocd_row.addWidget(browse_btn(lambda: self._browse(self.openocd_path, binary=True)))
+        self.ocd_row = QWidget()
+        ocd_l = QHBoxLayout(self.ocd_row)
+        ocd_l.setContentsMargins(0, 0, 0, 0)
+        ocd_l.setSpacing(8)
+        ocd_l.addWidget(self.openocd_path)
+        ocd_l.addWidget(browse_btn(lambda: self._browse(self.openocd_path, binary=True)))
 
-        form.addRow("Device", self.device)
-        form.addRow("Target", self.target)
-        form.addRow("SN / BLE name", self.sn)
-        form.addRow("Mileage (km)", self.km)
-        form.addRow(self.fake_chip)
-        form.addRow(self.extract_uid)
-        form.addRow(self.activate_ecu)
-        form.addRow(self.extract_data)
-        form.addRow(self.fast_mode)
-        form.addRow(self.attach)
-        form.addRow("Custom firmware", fw_row)
-        form.addRow("Custom bootloader", bl_row)
-        form.addRow("OpenOCD binary", ocd_row)
+        self.form.addRow("Device", self.device)
+        self.form.addRow("Flash", self.target)
+        self.form.addRow("SN / BLE name", self.sn)
+        self.form.addRow("Mileage (km)", self.km)
+        self.form.addRow(self.fake_chip)
+        self.form.addRow(self.extract_uid)
+        self.form.addRow(self.activate_ecu)
+        self.form.addRow(self.extract_data)
+        self.form.addRow(self.fast_mode)
+        self.form.addRow(self.attach)
+        self.form.addRow("Custom firmware", self.fw_row)
+        self.form.addRow("Custom bootloader", self.bl_row)
+        self.form.addRow("OpenOCD binary", self.ocd_row)
         layout.addWidget(form_box)
 
         btns = QHBoxLayout()
         btns.setSpacing(10)
         self.btn_flash = QPushButton("Flash")
         self.btn_flash.setObjectName("flashButton")
-        self.btn_unlock = QPushButton("Unlock F4")
+        self.btn_unlock = QPushButton("Unlock")
         self.btn_unlock.setObjectName("unlockButton")
         self.btn_flash.clicked.connect(self.on_flash)
-        self.btn_unlock.clicked.connect(self.on_unlock_f4)
+        self.btn_unlock.clicked.connect(self.on_unlock)
         btns.addWidget(self.btn_flash, 2)
         btns.addWidget(self.btn_unlock, 1)
         layout.addLayout(btns)
@@ -208,16 +225,101 @@ class MainWindow(QMainWindow):
         self.setStatusBar(status)
         status.showMessage("Ready · ST-Link SWD")
 
-        self.device.currentTextChanged.connect(self._refresh_help)
-        self.target.currentTextChanged.connect(self._refresh_help)
-        self.fake_chip.toggled.connect(self._refresh_help)
-        self.device.currentTextChanged.connect(self._on_device)
-        self._on_device(self.device.currentText())
-        self._refresh_help()
+        self.device.currentTextChanged.connect(self._sync_ui)
+        self.target.currentTextChanged.connect(self._sync_ui)
+        self.fake_chip.toggled.connect(self._sync_ui)
+        self._sync_ui()
         self._worker: FlashWorker | None = None
 
         os.makedirs(os.path.join(CONFIG_DIRECTORY, "binaries", "firmware"), exist_ok=True)
         os.makedirs(os.path.join(CONFIG_DIRECTORY, "tmp"), exist_ok=True)
+
+    def _set_row_visible(self, field, visible: bool):
+        field.setVisible(visible)
+        label = self.form.labelForField(field)
+        if label is not None:
+            label.setVisible(visible)
+
+    def _internal_target(self) -> str:
+        """Map UI Flash selection to ESC/BLE."""
+        return "BLE" if self.target.currentText() == TARGET_BLE else "ESC"
+
+    def _rebuild_targets(self, device: str):
+        current = self.target.currentText()
+        self.target.blockSignals(True)
+        self.target.clear()
+        self.target.addItem(TARGET_DRV)
+        if supports_ble(device):
+            self.target.addItem(TARGET_BLE)
+        # restore if still valid
+        idx = self.target.findText(current)
+        self.target.setCurrentIndex(idx if idx >= 0 else 0)
+        self.target.blockSignals(False)
+
+    def _sync_ui(self, *_args):
+        device = self.device.currentText()
+        self._rebuild_targets(device)
+        target = self._internal_target()
+        is_f4 = device in F4_DEV
+        is_drv = target == "ESC"
+        is_ble = target == "BLE"
+
+        # SN: DRV (non-F4) or BLE name
+        show_sn = (is_drv and not is_f4) or is_ble
+        self._set_row_visible(self.sn, show_sn)
+        if is_ble:
+            self.form.labelForField(self.sn).setText("BLE name")
+            self.sn.setPlaceholderText("display name")
+        elif is_drv and not is_f4:
+            self.form.labelForField(self.sn).setText("Serial number")
+            self.sn.setPlaceholderText("")
+            if not self.sn.text():
+                self.sn.setText(DEFAULT_ESC_SN.get(device, ""))
+        if is_f4:
+            self.sn.clear()
+
+        self._set_row_visible(self.km, is_drv and not is_f4)
+        show_fake = supports_fake_chip(device, target)
+        self._set_row_visible(self.fake_chip, show_fake)
+        if not show_fake:
+            self.fake_chip.setChecked(False)
+        elif is_f4:
+            self.fake_chip.setChecked(False)
+
+        self._set_row_visible(self.extract_uid, is_drv and not is_f4)
+        self._set_row_visible(self.activate_ecu, is_drv and not is_f4)
+        self._set_row_visible(self.extract_data, is_drv and not is_f4)
+        self._set_row_visible(self.fast_mode, is_ble)
+
+        # Custom BL useful for DRV (incl. F4); BLE bootloaders rarely overridden but allow
+        self._set_row_visible(self.bl_row, True)
+        self._set_row_visible(self.fw_row, True)
+        self._set_row_visible(self.ocd_row, True)
+        self._set_row_visible(self.attach, True)
+
+        show_unlock = supports_unlock(device, target)
+        self.btn_unlock.setVisible(show_unlock)
+        self.btn_unlock.setEnabled(show_unlock)
+        if is_f4:
+            self.btn_unlock.setToolTip("STM32F4 RDP clear — then power-cycle before Flash")
+            self.statusBar().showMessage("4proita · STM32F4 · Unlock → POR → Flash")
+        elif is_drv and self.fake_chip.isChecked() and supports_fake_chip(device, "ESC"):
+            if device in XIAOMI_DEV:
+                self.btn_unlock.setToolTip("GD32 option-byte unlock")
+                self.statusBar().showMessage("Ready · GD32 unlock")
+            elif device in NINEBOT_DEV + XIAOMI_V2_DEV:
+                self.btn_unlock.setToolTip("AT32: no separate unlock — use Flash")
+                self.statusBar().showMessage("Ready · AT32 (unlock via Flash)")
+            else:
+                self.btn_unlock.setToolTip("Unlock chip protection")
+                self.statusBar().showMessage("Ready · ST-Link SWD")
+        elif is_drv:
+            self.btn_unlock.setToolTip("STM32 RDP unlock (stm32f1x)")
+            self.statusBar().showMessage("Ready · ST-Link SWD")
+        else:
+            self.statusBar().showMessage("Ready · BLE / nRF51")
+
+        self._refresh_help()
 
     def _browse(self, line: QLineEdit, binary: bool = False):
         if binary:
@@ -227,27 +329,11 @@ class MainWindow(QMainWindow):
         if path:
             line.setText(path)
 
-    def _on_device(self, device: str):
-        is_f4 = device in F4_DEV
-        self.btn_unlock.setEnabled(is_f4)
-        self.fake_chip.setEnabled(not is_f4)
-        if is_f4:
-            self.fake_chip.setChecked(False)
-            self.target.setCurrentText("ESC")
-            self.sn.setPlaceholderText("not used (EEPROM)")
-            self.sn.setText("")
-            self.statusBar().showMessage("4proita · STM32F4 · unlock → POR → flash")
-        else:
-            self.sn.setPlaceholderText("")
-            if not self.sn.text():
-                self.sn.setText(DEFAULT_ESC_SN.get(device, ""))
-            self.statusBar().showMessage("Ready · ST-Link SWD")
-
     def _refresh_help(self):
         self.help.setPlainText(
             instructions_for(
                 self.device.currentText(),
-                self.target.currentText(),
+                self._internal_target(),
                 self.fake_chip.isChecked(),
             )
         )
@@ -257,10 +343,10 @@ class MainWindow(QMainWindow):
         self.log.insertPlainText(msg + "\n")
         self.log.moveCursor(QTextCursor.End)
 
-    def _opts(self, unlock_f4: bool = False) -> dict:
+    def _opts(self, unlock_only: bool = False) -> dict:
         return {
             "device": self.device.currentText(),
-            "target": self.target.currentText(),
+            "target": self._internal_target(),
             "sn": self.sn.text().strip(),
             "km": self.km.text().strip() or "0",
             "fake_chip": self.fake_chip.isChecked(),
@@ -272,7 +358,7 @@ class MainWindow(QMainWindow):
             "custom_fw": self.custom_fw.text().strip(),
             "custom_bootloader": self.custom_bl.text().strip(),
             "openocd": self.openocd_path.text().strip(),
-            "unlock_f4": unlock_f4,
+            "unlock_only": unlock_only,
         }
 
     def _start(self, opts: dict):
@@ -281,11 +367,11 @@ class MainWindow(QMainWindow):
             return
         device = opts["device"]
         if device in F4_DEV and opts["target"] != "ESC":
-            QMessageBox.critical(self, "Error", "4proita is STM32F4 ESC only.")
+            QMessageBox.critical(self, "Error", "4proita is STM32F4 DRV only.")
             return
         self.btn_flash.setEnabled(False)
         self.btn_unlock.setEnabled(False)
-        self.statusBar().showMessage("Flashing…")
+        self.statusBar().showMessage("Working…")
         self._append("--- start ---")
         self._worker = FlashWorker(opts)
         self._worker.log.connect(self._append)
@@ -293,17 +379,17 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def on_flash(self):
-        self._start(self._opts(unlock_f4=False))
+        self._start(self._opts(unlock_only=False))
 
-    def on_unlock_f4(self):
-        if self.device.currentText() not in F4_DEV:
-            QMessageBox.information(self, "F4", "Select device 4proita (STM32F4).")
+    def on_unlock(self):
+        if self._internal_target() != "ESC":
+            QMessageBox.information(self, "Unlock", "Unlock applies to DRV only.")
             return
-        self._start(self._opts(unlock_f4=True))
+        self._start(self._opts(unlock_only=True))
 
     def _finished(self, ok: bool, msg: str):
         self.btn_flash.setEnabled(True)
-        self.btn_unlock.setEnabled(self.device.currentText() in F4_DEV)
+        self.btn_unlock.setEnabled(supports_unlock(self.device.currentText(), self._internal_target()))
         self._append(("OK: " if ok else "FAIL: ") + msg)
         self.statusBar().showMessage("Done" if ok else "Failed")
         if ok:

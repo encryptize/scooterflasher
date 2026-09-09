@@ -30,6 +30,30 @@ FAKEDRV_DEV = [
 
 ALL_DEVICES = NINEBOT_DEV + XIAOMI_DEV + XIAOMI_V2_DEV + F4_DEV
 
+# BLE not supported / not wired in this tool
+NO_BLE_DEV = set(F4_DEV) | {"g2"}
+
+
+def supports_ble(device: str) -> bool:
+    return device not in NO_BLE_DEV
+
+
+def supports_drv(device: str) -> bool:
+    return True  # all listed models have an ESC/DRV path
+
+
+def supports_fake_chip(device: str, target: str = "ESC") -> bool:
+    if device in F4_DEV:
+        return False
+    if target == "BLE":
+        return True  # 16k RAM layout
+    return device in FAKEDRV_DEV
+
+
+def supports_unlock(device: str, target: str = "ESC") -> bool:
+    """Unlock applies to DRV/ESC only (RDP / GD32 / F4)."""
+    return target == "ESC"
+
 DEFAULT_ESC_SN = {
     "m365": "16133/00000000",
     "pro": "21886/00000000",
@@ -162,8 +186,8 @@ def parse_args(argv=None):
                         help="Custom bootloader image (ESC). For 4proita with --cfw: jump boot @0 + app @0x4000")
     parser.add_argument("--custom-ram", "--cram",
                         help="Flash custom RAM dump instead of generated or extracted by program")
-    parser.add_argument("--unlock-f4", action="store_true",
-                        help="4proita only: clear RDP then stop for POR (do not flash in the same run)")
+    parser.add_argument("--unlock", "--unlock-f4", action="store_true",
+                        help="Unlock only (F4 / GD32 / STM32 RDP as appropriate for device); do not flash")
 
     args = parser.parse_args(argv)
 

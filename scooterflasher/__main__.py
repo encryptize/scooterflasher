@@ -9,7 +9,7 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
 
     from scooterflasher.config import CONFIG_DIRECTORY
-    from scooterflasher.utils import parse_args, sfprint, F4_DEV
+    from scooterflasher.utils import parse_args, sfprint
 
     for d in ["binaries/firmware", "binaries/bootloader", "tmp"]:
         os.makedirs(os.path.join(CONFIG_DIRECTORY, d), exist_ok=True)
@@ -45,11 +45,8 @@ def main(argv=None):
         sfprint(f"Update check skipped: {e}")
 
     try:
-        if args.unlock_f4:
-            if args.device not in F4_DEV:
-                sfprint("--unlock-f4 is only for 4proita (STM32F4)")
-                return 1
-            flash.unlock_f4()
+        if args.unlock:
+            flash.unlock()
             return 0
         if args.target == "ESC":
             flash.flash_esc(args.extract_uid, args.activate_ecu, args.km, unlock_f4=False)
