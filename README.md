@@ -20,7 +20,7 @@ pip install -r requirements.txt   # runtime: requests + PySide6
 # optional CI/dev freeze: pip install -r requirements-build.txt
 ```
 
-App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders ship in-repo under `binaries/bootloader/` (including `4proita_DRV.bin` for STM32F4).
+App firmware for most models is downloaded on first run into `~/.scooterflasher/binaries/firmware/`. Bootloaders ship in-repo under `binaries/bootloader/` (including `4proita_DRV.bin` for the F4 ESC).
 
 ## GUI
 
@@ -30,35 +30,44 @@ python -m scooterflasher
 python -m scooterflasher --gui
 ```
 
+In the GUI, **Flash** is **DRV** (ESC) or **BLE**. Options (SN, km, fake chip, …) only appear when they apply. **Unlock** picks the right path for the selected scooter (F4 RDP, GD32, or STM32F1).
+
 ## CLI examples
 
+`--target` is `ESC` (motor controller / DRV) or `BLE` (dashboard). Use `--unlock` alone to clear protection without programming.
+
 ```bash
-# Xiaomi Mi3 ESC with GD32 + custom FW
-python -m scooterflasher --device mi3 --target ESC --sn 32124/00000000 --fake-chip --km 997 --activate-ecu --cfw your_cfw.bin
+# Xiaomi Mi3 ESC (GD32) + custom firmware, activate, set mileage
+python -m scooterflasher -d mi3 --target ESC --sn 32124/00000000 \
+  --fake-chip --km 997 --activate-ecu --cfw your_cfw.bin
 
-# Ninebot Max BLE
-python -m scooterflasher --device max --target BLE --sn NBScooter0000
+# Ninebot Max BLE name
+python -m scooterflasher -d max --target BLE --sn NBScooter0000
 
-# 4 Pro ITA (STM32F4 ESC) — unlock + POR, then flash
-python -m scooterflasher --device 4proita --target ESC --unlock-f4
-# power-cycle ESC, then:
-python -m scooterflasher --device 4proita --target ESC
-
-# Custom jump-boot + app on 4proita
-python -m scooterflasher --device 4proita --target ESC --cbl jump.bin --cfw app.bin
-
-# Attach to an already-running OpenOCD (Tcl port 6666)
-python -m scooterflasher --attach --device m365 --target ESC --sn 16133/00000000
+# Attach to OpenOCD you already started (Tcl RPC :6666)
+python -m scooterflasher --attach -d m365 --target ESC --sn 16133/00000000
 ```
 
-### 4proita (STM32F4)
+### Xiaomi 4 Pro F4 (`4proita`)
 
-`4proita` is the **Xiaomi 4 Pro F4 motor ESC** (`STM32F400CBT6`). It is **not** the same as `4pro` (F1/AT32 userdata layout).
+Catalog **`ninebot.scooter.15`** — MCU **STM32F400CBT6** (≈ F410 / RM0401). This is **not** device `4pro` in this tool (that path is the F1/AT32 / `scooter.v8`-style ESC with flash userdata).
 
-- OpenOCD target: `stm32f4x`
-- Default flash: combined jump-boot ‖ app at `0x08000000`
-- After `--unlock-f4`, do a **true power cycle** before flashing (NRST is not enough)
-- SN/UUID are in I2C EEPROM (not written by this tool)
+Identity (SN/UUID) lives in **I2C EEPROM**, not MCU flash — ScooterFlasher does not write it. See project docs under `docs/scooters/4pro/` (`f4_jump_boot.md`, `f4_userdata.md`).
+
+Default image: `binaries/bootloader/4proita_DRV.bin` (jump boot @ `0x08000000` ‖ app @ `0x08004000`, patched: no auto-RDP). Equivalent to the kit’s `f4_boot_plus_app_patched.bin`.
+
+```bash
+# 1) Clear RDP (stm32f2x unlock). Then true POR — cut ESC power; NRST is not enough.
+python -m scooterflasher -d 4proita --target ESC --unlock
+
+# 2) After power-cycle + OpenOCD back up, program default image
+python -m scooterflasher -d 4proita --target ESC
+
+# Optional: custom jump stub + app (boot @ 0x08000000, app @ 0x08004000)
+python -m scooterflasher -d 4proita --target ESC --cbl f4_jump_boot.bin --cfw EC_ESC_Driver_V1.0.1.5.bin
+```
+
+OpenOCD target: `stm32f4x` (flash driver command name `stm32f2x`). Sibling kits / pyOCD notes: `firmware/kits/4pro-f4-stlink/`, `scooters/4pro/f4_app_boot/`.
 
 ## Releases
 
