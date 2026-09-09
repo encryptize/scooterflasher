@@ -3,8 +3,9 @@
 
 ScooterFlasher is an OpenOCD / ST-Link SWD flasher for Xiaomi and Ninebot scooters (CLI + GUI).
 
-## Special thanks
-Before you start reading the instructions for using this program, I would like to thank the [ScooterHacking](https://scooterhacking.org/) team incredibly for creating [ReFlasher](https://www.scooterhacking.org/forum/viewtopic.php?f=14&t=676). It's mainly based on it, but ScooterFlasher's goal is cross-platform.
+## Background
+
+ScooterFlasher started as a cross-platform OpenOCD wrapper inspired by [ScooterHacking](https://scooterhacking.org/)’s [ReFlasher](https://www.scooterhacking.org/forum/viewtopic.php?f=14&t=676) — many thanks to that team. The project was later archived, then revived with a PySide6 GUI, persistent OpenOCD sessions, and broader ESC support (including Xiaomi 4 Pro STM32F4 / `4proita`).
 
 ## Requirements
 
