@@ -12,7 +12,7 @@ XIAOMI_V2_DEV = [
     "4pro", "4proplus", "4promax"
 ]
 
-# Xiaomi 4 Pro F4 ESC (STM32F400CBT6 / F410 stand-in) — not the F1/AT32 "4pro"
+# Xiaomi 4 Pro F4 ESC (STM32F400CBT6 / F410 stand-in) - not the F1/AT32 "4pro"
 F4_DEV = [
     "4proita",
 ]
@@ -62,7 +62,7 @@ DEFAULT_ESC_SN = {
     "lite": "25600/00000000",
     "mi3": "32124/00000000",
     "4pro": "35802/CHA00000000000",
-    "4proita": "",  # SN in I2C EEPROM — not written over SWD
+    "4proita": "",  # SN in I2C EEPROM - not written over SWD
     "max": "N4GSD0000C0000",
     "esx": "N2GSD0000C0000",
     "e": "N2GQD0000C0000",
@@ -154,7 +154,7 @@ def sfprint(*objs, **kwargs):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="ScooterFlasher — ST-Link / OpenOCD SWD flasher"
+        description="ScooterFlasher - ST-Link / OpenOCD SWD flasher"
     )
     parser.add_argument("--gui", action="store_true", help="Launch the GUI")
     parser.add_argument("--device", "-d",
@@ -180,14 +180,18 @@ def parse_args(argv=None):
                         help="Location of openocd binary.")
     parser.add_argument("--attach", action="store_true",
                         help="Attach to an already-running OpenOCD Tcl RPC (port 6666)")
-    parser.add_argument('--custom-fw', '--cfw',
-                        help="Custom firmware to flash instead of an official")
+    parser.add_argument('--custom-fw', '--cfw', '--fw',
+                        required=False,
+                        help="Firmware .bin to flash (required unless --unlock)")
     parser.add_argument("--custom-bootloader", "--cbl",
-                        help="Custom bootloader image (ESC). For 4proita with --cfw: jump boot @0 + app @0x4000")
+                        help="Bootloader image override (ESC). Default: shipped DRV boot. "
+                             "F4: jump boot @ 0x08000000; app (--cfw) @ 0x08004000")
     parser.add_argument("--custom-ram", "--cram",
                         help="Flash custom RAM dump instead of generated or extracted by program")
     parser.add_argument("--unlock", "--unlock-f4", action="store_true",
                         help="Unlock only (F4 / GD32 / STM32 RDP as appropriate for device); do not flash")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Log OpenOCD commands without starting OpenOCD or writing flash")
 
     args = parser.parse_args(argv)
 
@@ -201,8 +205,13 @@ def parse_args(argv=None):
         if args.target != "ESC":
             parser.error("4proita is STM32F4 ESC only (no BLE target)")
         if args.fake_chip:
-            parser.error("4proita is STM32F4 — --fake-chip does not apply")
+            parser.error("4proita is STM32F4 - --fake-chip does not apply")
         args.sn = args.sn or ""
+
+    if not args.unlock and not args.custom_fw:
+        parser.error("Firmware is required: pass --cfw / --fw (unless --unlock)")
+
+    if args.device in F4_DEV:
         return args
 
     if args.target == "ESC":

@@ -5,22 +5,22 @@
 from scooterflasher.utils import F4_DEV, NINEBOT_DEV, XIAOMI_DEV, XIAOMI_V2_DEV
 
 GENERAL = """\
-ScooterFlasher — ST-Link SWD flasher (OpenOCD Tcl RPC on port 6666).
+ScooterFlasher - ST-Link SWD flasher (OpenOCD Tcl RPC on port 6666).
 
 1. Wire SWDIO / SWCLK / GND / 3V3 (and NRST if available).
 2. Power the board (or power from ST-Link 3V3 if the design allows).
 3. Pick device + target, then Flash (or Unlock F4 first for 4proita).
 
 OpenOCD is started automatically, or use Attach if you already started it.
+Dry run logs Tcl commands without starting OpenOCD or writing flash.
 """
 
 F4_ITA = """\
-4proita = Xiaomi 4 Pro F4 ESC (STM32F400CBT6 ≈ F410) — STM32F4 only.
+4proita = Xiaomi 4 Pro F4 ESC (STM32F400CBT6 ≈ F410) - STM32F4 only.
 
 • Target: ESC only (no BLE in this tool).
-• Default image: jump-boot ‖ app @ 0x08000000 (patched: no auto-RDP).
-• Custom bootloader + custom FW: boot @ 0x08000000, app @ 0x08004000.
-• SN/UUID live in I2C EEPROM — not written over SWD.
+• Firmware is required. Boot @ 0x08000000 (mi_DRV_STM32F4.bin jump stub), app @ 0x08004000.
+• SN/UUID live in I2C EEPROM - not written over SWD.
 • Unlock flow: Unlock F4 → true power-cycle (POR) → restart OpenOCD → Flash.
   NRST alone is not enough after RDP clear (RM0401 §3.6.3).
 • Do not use --fake-chip (that is GD32/AT32).
@@ -40,14 +40,15 @@ AT32 (Ninebot / 4pro F1-class with --fake-chip):
 
 BLE = """\
 BLE (nRF51):
-• Mass-erase + SoftDevice/boot layout + UICR.
+• Firmware is required. Mass-erase + SoftDevice/boot layout + UICR.
 • Fast mode needs C16 removed on many dashboards.
 • --fake-chip selects 16k RAM layout / UICR.bin.
 """
 
 ESC_STD = """\
 ESC (STM32 F1-class):
-• Writes bootloader @ 0x08000000, app @ +0x1000, userdata @ 0xF800 (Mi) or 0x1C000 (NB/V2).
+• Firmware is required. Writes bootloader @ 0x08000000, app @ +0x1000,
+  userdata @ 0xF800 (Mi) or 0x1C000 (NB/V2).
 • Optional: extract UID, activate ECU, set SN/km, or restore from RAM dump.
 """
 

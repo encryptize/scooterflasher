@@ -37,6 +37,7 @@ def main(argv=None):
         args.openocd,
         custom_bootloader=args.custom_bootloader,
         attach=args.attach,
+        dry_run=args.dry_run,
     )
 
     try:

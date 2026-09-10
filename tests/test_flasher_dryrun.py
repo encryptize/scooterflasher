@@ -62,14 +62,20 @@ class TestParseArgs(unittest.TestCase):
 
     def test_4proita_rejects_fake_chip(self):
         with self.assertRaises(SystemExit):
-            parse_args(["--device", "4proita", "--target", "ESC", "--fake-chip"])
+            parse_args(["--device", "4proita", "--target", "ESC", "--fake-chip", "--cfw", "x.bin"])
 
     def test_unlock_flag(self):
         args = parse_args(["--device", "4proita", "--target", "ESC", "--unlock"])
         self.assertTrue(args.unlock)
 
+    def test_firmware_required_unless_unlock(self):
+        with self.assertRaises(SystemExit):
+            parse_args(["--device", "4proita", "--target", "ESC"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--device", "m365", "--target", "ESC"])
+
     def test_default_sn(self):
-        args = parse_args(["--device", "m365", "--target", "ESC"])
+        args = parse_args(["--device", "m365", "--target", "ESC", "--cfw", "x.bin"])
         self.assertEqual(args.sn, "16133/00000000")
 
 
@@ -125,16 +131,21 @@ class TestUnlockDryRun(unittest.TestCase):
 
 
 class TestFlashDryRun(unittest.TestCase):
-    def test_flash_f4_combined_image(self):
+    def test_flash_f4_boot_and_app(self):
         oocd, rpc = _oocd_mock()
-        fw = BOOTLOADER_DIR / "mi_DRV_STM32F4.bin"
-        self.assertTrue(fw.is_file(), f"missing {fw}")
-        f = Flasher("4proita", openocd=oocd)
-        f.flash_esc()
-        oocd.start.assert_called_with("stm32f4x")
-        rpc.program.assert_called()
-        args, _kwargs = rpc.program.call_args
-        self.assertEqual(args[1], F4_FLASH_BASE)
+        boot = BOOTLOADER_DIR / "mi_DRV_STM32F4.bin"
+        self.assertTrue(boot.is_file(), f"missing {boot}")
+        with tempfile.TemporaryDirectory() as td:
+            app = Path(td) / "app.bin"
+            app.write_bytes(b"\x11" * 64)
+            f = Flasher("4proita", openocd=oocd, custom_fw=str(app))
+            f.flash_esc()
+            oocd.start.assert_called_with("stm32f4x")
+            calls = rpc.program.call_args_list
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(calls[0].args[1], F4_FLASH_BASE)
+            self.assertEqual(calls[1].args[1], F4_APP_BASE)
+            self.assertEqual(calls[1].args[0], str(app).replace("\\", "/"))
 
     def test_flash_f4_custom_boot_and_app(self):
         oocd, rpc = _oocd_mock()
@@ -154,6 +165,12 @@ class TestFlashDryRun(unittest.TestCase):
             self.assertEqual(len(calls), 2)
             self.assertEqual(calls[0].args[1], F4_FLASH_BASE)
             self.assertEqual(calls[1].args[1], F4_APP_BASE)
+
+    def test_flash_f4_requires_firmware(self):
+        oocd, _ = _oocd_mock()
+        f = Flasher("4proita", openocd=oocd)
+        with self.assertRaises(RuntimeError):
+            f.flash_esc()
 
     def test_flash_stm32_layout(self):
         oocd, rpc = _oocd_mock()
@@ -184,18 +201,48 @@ class TestFlashDryRun(unittest.TestCase):
 
 
 class TestBinaryResolution(unittest.TestCase):
-    def test_4proita_bins_resolve(self):
+    def test_4proita_boot_resolves_jump(self):
         f = Flasher("4proita", openocd=MagicMock())
         boot = f.get_bootloader_path("ESC")
-        fw = f.get_firmware_path("ESC")
         self.assertTrue(Path(boot).is_file())
-        self.assertTrue(Path(fw).is_file())
         self.assertTrue("mi_DRV_STM32F4" in boot)
+        # Jump stub only (16 KiB), not combined boot‖app
+        self.assertEqual(Path(boot).stat().st_size, 16384)
+
+    def test_4proita_fw_requires_path(self):
+        f = Flasher("4proita", openocd=MagicMock())
+        with self.assertRaises(RuntimeError):
+            f.get_firmware_path("ESC")
 
     def test_gd32_bootloader_name(self):
         f = Flasher("mi3", fake_chip=True, openocd=MagicMock())
         path = f.get_bootloader_path("ESC")
         self.assertIn("GD32", path)
+
+
+class TestDryRun(unittest.TestCase):
+    def test_flash_f4_dry_run_no_openocd(self):
+        from scooterflasher.oocd import OpenOCD
+        from scooterflasher.rpc import DryRunRpc
+
+        with tempfile.TemporaryDirectory() as td:
+            app = Path(td) / "app.bin"
+            app.write_bytes(b"\x11" * 64)
+            oocd = OpenOCD(dry_run=True, log=lambda m: None)
+            f = Flasher("4proita", openocd=oocd, custom_fw=str(app), dry_run=True)
+            f.flash_esc()
+            rpc = oocd.rpc()
+            self.assertIsInstance(rpc, DryRunRpc)
+            cmds = rpc.commands
+            self.assertTrue(any(c.startswith("program") and "0x8000000" in c for c in cmds))
+            self.assertTrue(any(c.startswith("program") and "0x8004000" in c for c in cmds))
+            self.assertIsNone(oocd._proc)
+
+    def test_cli_dry_run_flag(self):
+        args = parse_args(
+            ["--device", "4proita", "--target", "ESC", "--cfw", "x.bin", "--dry-run"]
+        )
+        self.assertTrue(args.dry_run)
 
 
 class TestOpenOcdTargetMap(unittest.TestCase):

@@ -78,6 +78,7 @@ class FlashWorker(QThread):
                 custom_bootloader=self.opts.get("custom_bootloader") or None,
                 openocd_path=self.opts.get("openocd") or None,
                 attach=self.opts.get("attach", False),
+                dry_run=self.opts.get("dry_run", False),
                 log=lambda m: self.log.emit(str(m)),
             )
             if self.opts.get("unlock_only"):
@@ -96,7 +97,8 @@ class FlashWorker(QThread):
                     flasher.openocd.stop()
             except Exception:
                 pass
-            self.done.emit(True, "Done")
+            msg = "Dry run complete (nothing written)" if self.opts.get("dry_run") else "Done"
+            self.done.emit(True, msg)
         except Exception as e:
             self.log.emit(traceback.format_exc())
             self.done.emit(False, str(e))
@@ -143,10 +145,11 @@ class MainWindow(QMainWindow):
         self.extract_data = QCheckBox("Extract ESC data from RAM")
         self.fast_mode = QCheckBox("BLE fast mode")
         self.attach = QCheckBox("Attach to running OpenOCD (:6666)")
+        self.dry_run = QCheckBox("Dry run (log only - no OpenOCD / no write)")
         self.custom_fw = QLineEdit()
-        self.custom_fw.setPlaceholderText("optional .bin")
+        self.custom_fw.setPlaceholderText("DRV...bin")
         self.custom_bl = QLineEdit()
-        self.custom_bl.setPlaceholderText("optional bootloader .bin")
+        self.custom_bl.setPlaceholderText("optional - default if empty")
         self.openocd_path = QLineEdit()
         self.openocd_path.setPlaceholderText("auto-detect if empty")
 
@@ -187,8 +190,9 @@ class MainWindow(QMainWindow):
         self.form.addRow(self.extract_data)
         self.form.addRow(self.fast_mode)
         self.form.addRow(self.attach)
-        self.form.addRow("Custom firmware", self.fw_row)
-        self.form.addRow("Custom bootloader", self.bl_row)
+        self.form.addRow(self.dry_run)
+        self.form.addRow("Firmware", self.fw_row)
+        self.form.addRow("Bootloader", self.bl_row)
         self.form.addRow("OpenOCD binary", self.ocd_row)
         layout.addWidget(form_box)
 
@@ -291,24 +295,27 @@ class MainWindow(QMainWindow):
         self._set_row_visible(self.extract_data, is_drv and not is_f4)
         self._set_row_visible(self.fast_mode, is_ble)
 
+        self.custom_fw.setPlaceholderText("BLE...bin" if is_ble else "DRV...bin")
+
         # Custom BL useful for DRV (incl. F4); BLE bootloaders rarely overridden but allow
         self._set_row_visible(self.bl_row, True)
         self._set_row_visible(self.fw_row, True)
         self._set_row_visible(self.ocd_row, True)
         self._set_row_visible(self.attach, True)
+        self._set_row_visible(self.dry_run, True)
 
         show_unlock = supports_unlock(device, target)
         self.btn_unlock.setVisible(show_unlock)
         self.btn_unlock.setEnabled(show_unlock)
         if is_f4:
-            self.btn_unlock.setToolTip("STM32F4 RDP clear — then power-cycle before Flash")
+            self.btn_unlock.setToolTip("STM32F4 RDP clear - then power-cycle before Flash")
             self.statusBar().showMessage("4proita · STM32F4 · Unlock → POR → Flash")
         elif is_drv and self.fake_chip.isChecked() and supports_fake_chip(device, "ESC"):
             if device in XIAOMI_DEV:
                 self.btn_unlock.setToolTip("GD32 option-byte unlock")
                 self.statusBar().showMessage("Ready · GD32 unlock")
             elif device in NINEBOT_DEV + XIAOMI_V2_DEV:
-                self.btn_unlock.setToolTip("AT32: no separate unlock — use Flash")
+                self.btn_unlock.setToolTip("AT32: no separate unlock - use Flash")
                 self.statusBar().showMessage("Ready · AT32 (unlock via Flash)")
             else:
                 self.btn_unlock.setToolTip("Unlock chip protection")
@@ -355,6 +362,7 @@ class MainWindow(QMainWindow):
             "extract_data": self.extract_data.isChecked(),
             "fast_mode": self.fast_mode.isChecked(),
             "attach": self.attach.isChecked(),
+            "dry_run": self.dry_run.isChecked(),
             "custom_fw": self.custom_fw.text().strip(),
             "custom_bootloader": self.custom_bl.text().strip(),
             "openocd": self.openocd_path.text().strip(),
@@ -379,6 +387,13 @@ class MainWindow(QMainWindow):
         self._worker.start()
 
     def on_flash(self):
+        if not self.custom_fw.text().strip():
+            QMessageBox.warning(self, "Firmware", "Select a firmware .bin before flashing.")
+            return
+        fw = self.custom_fw.text().strip()
+        if not os.path.isfile(fw):
+            QMessageBox.critical(self, "Firmware", f"Firmware not found:\n{fw}")
+            return
         self._start(self._opts(unlock_only=False))
 
     def on_unlock(self):

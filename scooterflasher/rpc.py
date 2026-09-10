@@ -118,7 +118,7 @@ class OpenOcdRpc:
         self.send("stm32f2x options_read 0")
 
         if rdp_before == 0xCC:
-            say("RDP level 2 — irreversible; unlock will not work.")
+            say("RDP level 2 - irreversible; unlock will not work.")
             return False
         if rdp_before == 0xAA:
             say("OPTCR already shows RDP level 0 (still POR if flash looks protected).")
@@ -133,7 +133,7 @@ class OpenOcdRpc:
         _, rdp_after = self.read_rdp()
         self.send("stm32f2x options_read 0")
         if rdp_after is not None and rdp_after != 0xAA:
-            say(f"NOTE: OPTCR.RDP still 0x{rdp_after:02X} — POR required for reload.")
+            say(f"NOTE: OPTCR.RDP still 0x{rdp_after:02X} - POR required for reload.")
         return True
 
 
@@ -148,7 +148,49 @@ def rdp_level(rdp: int) -> str:
 POR_INSTRUCTIONS = """\
 POWER CYCLE REQUIRED (RM0401 §3.6.3)
 1. Stop OpenOCD if still attached.
-2. Cut ESC power / unplug battery (true POR — NRST alone is not enough).
+2. Cut ESC power / unplug battery (true POR - NRST alone is not enough).
 3. Restore power, restart OpenOCD for the F4 target.
 4. Flash the image (do not unlock again unless RDP returned).
 """
+
+
+class DryRunRpc(OpenOcdRpc):
+    """Log Tcl commands without touching hardware or OpenOCD."""
+
+    def __init__(self, log: LogFn | None = None):
+        # Intentionally skip OpenOcdRpc.__init__ (no socket)
+        self._log = log or (lambda m: None)
+        self._connected = True
+        self.commands: list[str] = []
+
+    def connect(self) -> None:
+        self._connected = True
+
+    def close(self) -> None:
+        self._connected = False
+
+    def send(self, cmd: str) -> str:
+        self.commands.append(cmd)
+        self._log(f"[dry-run] {cmd}")
+        return ""
+
+    def mrw(self, address: int) -> int | None:
+        self.send(f"mrw 0x{address:08x}")
+        if address == FLASH_OPTCR:
+            return 0x0FFFAA00  # RDP level 0
+        return 0
+
+    def program(self, path: str | pathlib.Path, address: int | None = None, verify: bool = True) -> str:
+        p = pathlib.Path(path).resolve()
+        if not p.is_file():
+            raise FileNotFoundError(p)
+        parts = ["program", p.as_posix()]
+        if verify:
+            parts.append("verify")
+        if address is not None:
+            parts.append(f"0x{address:x}")
+        return self.send(" ".join(parts))
+
+    def dump_image(self, path: str | pathlib.Path, address: int, size: int) -> str:
+        p = pathlib.Path(path).resolve()
+        return self.send(f"dump_image {p.as_posix()} 0x{address:x} 0x{size:x}")

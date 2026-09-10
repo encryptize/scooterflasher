@@ -13,7 +13,7 @@ import time
 from typing import Callable
 
 from scooterflasher.paths import OOCD_SCRIPTS, TOOL_ROOT, posix
-from scooterflasher.rpc import DEFAULT_HOST, DEFAULT_PORT, OpenOcdRpc
+from scooterflasher.rpc import DEFAULT_HOST, DEFAULT_PORT, DryRunRpc, OpenOcdRpc
 from scooterflasher.utils import OPENOCD_ERRORS, sfprint
 
 LogFn = Callable[[str], None]
@@ -28,7 +28,7 @@ TARGET_CFGS = {
     "nrf51-fast": "target/nrf51-fast.cfg",
 }
 
-# F4 kit uses SRST; many F1/nRF boards do not wire it — leave target default.
+# F4 kit uses SRST; many F1/nRF boards do not wire it - leave target default.
 SRST_TARGETS = {"stm32f4x"}
 
 
@@ -41,18 +41,21 @@ class OpenOCD:
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
         log: LogFn | None = None,
+        dry_run: bool = False,
     ) -> None:
-        self.bin_path = self.get_bin_path(openocd_path)
+        self.dry_run = dry_run
+        self.log = log or sfprint
         self.host = host
         self.port = port
-        self.log = log or sfprint
+        self.bin_path = "openocd" if dry_run else self.get_bin_path(openocd_path)
         self._proc: subprocess.Popen | None = None
         self._target_key: str | None = None
         self._rpc: OpenOcdRpc | None = None
         self._reader: threading.Thread | None = None
         self._critical = False
         self._owned = False
-
+        if dry_run:
+            self._rpc = DryRunRpc(log=self.log)
     @staticmethod
     def get_bin_path(openocd_path: str | None) -> str:
         if openocd_path and os.path.isfile(openocd_path):
@@ -84,6 +87,11 @@ class OpenOCD:
 
     def attach(self) -> None:
         """Use an already-running OpenOCD Tcl RPC server (no spawn)."""
+        if self.dry_run:
+            self._target_key = self._target_key or "dry-run"
+            self._rpc = DryRunRpc(log=self.log)
+            self.log(f"[dry-run] Would attach to OpenOCD at {self.host}:{self.port}")
+            return
         if not self.port_open:
             raise RuntimeError(
                 f"No OpenOCD on {self.host}:{self.port}. "
@@ -97,6 +105,12 @@ class OpenOCD:
     def start(self, target_key: str, interface: str = "stlink") -> None:
         if target_key not in TARGET_CFGS:
             raise ValueError(f"Unknown target {target_key!r}")
+
+        if self.dry_run:
+            self._target_key = target_key
+            self._rpc = DryRunRpc(log=self.log)
+            self.log(f"[dry-run] Would start OpenOCD ({target_key})")
+            return
 
         if self.running and self._target_key == target_key and self._rpc:
             return
@@ -155,6 +169,12 @@ class OpenOCD:
         self.log(f"OpenOCD ready on {self.host}:{self.port}")
 
     def stop(self) -> None:
+        if self.dry_run:
+            self._rpc = DryRunRpc(log=self.log) if self._rpc is not None else None
+            self._target_key = None
+            self._owned = False
+            return
+
         if self._rpc is not None:
             try:
                 self._rpc.close()
@@ -183,12 +203,19 @@ class OpenOCD:
         self._reconnect_rpc()
 
     def rpc(self) -> OpenOcdRpc:
+        if self.dry_run:
+            if self._rpc is None:
+                self._rpc = DryRunRpc(log=self.log)
+            return self._rpc
         if self._rpc is None:
             self._reconnect_rpc()
         assert self._rpc is not None
         return self._rpc
 
     def _reconnect_rpc(self) -> None:
+        if self.dry_run:
+            self._rpc = DryRunRpc(log=self.log)
+            return
         if self._rpc is not None:
             try:
                 self._rpc.close()

@@ -15,7 +15,7 @@ from typing import Callable
 
 from scooterflasher.config import CONFIG_DIRECTORY
 from scooterflasher.oocd import OpenOCD
-from scooterflasher.paths import BOOTLOADER_DIR, FIRMWARE_DIR, TOOL_ROOT, posix
+from scooterflasher.paths import BOOTLOADER_DIR, TOOL_ROOT, posix
 from scooterflasher.rpc import POR_INSTRUCTIONS, rdp_level
 from scooterflasher.utils import (
     FAKEDRV_DEV,
@@ -49,6 +49,7 @@ class Flasher:
         log: LogFn | None = None,
         openocd: OpenOCD | None = None,
         attach: bool = False,
+        dry_run: bool = False,
     ) -> None:
         self.device = device
         self.sn = sn or ""
@@ -58,8 +59,11 @@ class Flasher:
         self.custom_ram = custom_ram
         self.custom_bootloader = custom_bootloader
         self.attach = attach
+        self.dry_run = dry_run
         self.log = log or sfprint
-        self.openocd = openocd or OpenOCD(openocd_path, log=self.log)
+        self.openocd = openocd or OpenOCD(openocd_path, log=self.log, dry_run=dry_run)
+        if dry_run:
+            self._say("[dry-run] No OpenOCD / no flash writes")
 
     def _say(self, msg: str) -> None:
         self.log(msg)
@@ -136,7 +140,7 @@ class Flasher:
             return None
         if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
             raise RuntimeError(
-                "AT32 has no separate unlock step — use Flash (mass-erase is included)."
+                "AT32 has no separate unlock step - use Flash (mass-erase is included)."
             )
         self.unlock_stm32()
         return None
@@ -187,13 +191,13 @@ class Flasher:
         self._say("ESC flash done")
 
     def flash_f4(self, *, unlock_first: bool = False) -> None:
-        """4proita STM32F4: program combined boot‖app at 0x08000000."""
+        """4proita STM32F4: jump boot @ 0x08000000, app @ 0x08004000."""
         if self.device not in F4_DEV:
             raise RuntimeError(f"{self.device} is not an STM32F4 (4proita) device")
         if unlock_first:
             self.unlock_f4()
             raise RuntimeError(
-                "F4 unlock done — power-cycle ESC, restart OpenOCD, then flash without --unlock-f4"
+                "F4 unlock done - power-cycle ESC, restart OpenOCD, then flash without --unlock-f4"
             )
 
         self._say("Writing 4proita ESC (STM32F4)")
@@ -208,15 +212,10 @@ class Flasher:
 
         boot = self.get_bootloader_path("ESC")
         fw = self.get_firmware_path("ESC")
-
-        if self.custom_bootloader and self.custom_fw:
-            self._say(f"Bootloader @ 0x{F4_FLASH_BASE:08X}: {boot}")
-            self._say(f"App @ 0x{F4_APP_BASE:08X}: {fw}")
-            rpc.program(boot, F4_FLASH_BASE)
-            rpc.program(fw, F4_APP_BASE)
-        else:
-            self._say(f"Image @ 0x{F4_FLASH_BASE:08X}: {fw}")
-            rpc.program(fw, F4_FLASH_BASE)
+        self._say(f"Bootloader @ 0x{F4_FLASH_BASE:08X}: {boot}")
+        self._say(f"App @ 0x{F4_APP_BASE:08X}: {fw}")
+        rpc.program(boot, F4_FLASH_BASE)
+        rpc.program(fw, F4_APP_BASE)
 
         rpc.reset_run()
         self._say("4proita STM32F4 flash done")
@@ -244,7 +243,7 @@ class Flasher:
 
     def dump_ram_stm32(self) -> None:
         if self.fake_chip and self.device in XIAOMI_DEV:
-            self._say("Warning: GD32 RAM dump is less tested — report issues if it fails.")
+            self._say("Warning: GD32 RAM dump is less tested - report issues if it fails.")
         ram_file = self.get_ram_path()
         rpc = self._ensure()
         rpc.init_halt()
@@ -302,7 +301,7 @@ class Flasher:
 
     def flash_ble(self, fast_mode: bool) -> None:
         if self.device in F4_DEV:
-            raise RuntimeError("4proita is STM32F4 ESC only — no BLE target")
+            raise RuntimeError("4proita is STM32F4 ESC only - no BLE target")
         if len(self.sn) <= 0 or len(self.sn) > 13:
             raise ValueError(
                 f"The scooter name must have at least one character, and up to 13. {self.sn}"
@@ -431,22 +430,12 @@ class Flasher:
         )
 
     def get_firmware_path(self, target: str) -> str:
-        if self.custom_fw:
-            return posix(self.custom_fw)
-
-        if self.device in F4_DEV and target == "ESC":
-            # Single shipped image: jump-boot ‖ app (mi_DRV_STM32F4.bin)
-            return self._resolve_binary(
-                BOOTLOADER_DIR / "mi_DRV_STM32F4.bin",
-                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "mi_DRV_STM32F4.bin",
-            )
-
-        device = "f2" if self.device.startswith("f2") else self.device
-        firmware_file = f"{device}_{target}.bin"
-        return self._resolve_binary(
-            Path(CONFIG_DIRECTORY) / "binaries" / "firmware" / firmware_file,
-            FIRMWARE_DIR / firmware_file,
-        )
+        if not self.custom_fw:
+            raise RuntimeError("Firmware is required (--cfw / Firmware path)")
+        path = Path(self.custom_fw)
+        if not path.is_file():
+            raise FileNotFoundError(f"Firmware not found: {path}")
+        return posix(path)
 
     def get_uicr_file(self) -> str:
         uicr_file = (
