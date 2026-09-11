@@ -30,7 +30,6 @@ _BOOT_COL = {
 class DeviceRow:
     device: str
     brand: str
-    family: str  # f1 | f4
     chips: tuple[str, ...]
     boot_stm32: str
     boot_gd32: str
@@ -40,7 +39,7 @@ class DeviceRow:
 
     @property
     def is_f4(self) -> bool:
-        return self.family == "f4" or CHIP_STM32F4 in self.chips
+        return CHIP_STM32F4 in self.chips
 
     @property
     def supports_ble(self) -> bool:
@@ -67,7 +66,6 @@ def _load_matrix(path: Path | None = None) -> dict[str, DeviceRow]:
             row = DeviceRow(
                 device=device,
                 brand=(rec.get("brand") or "mi").strip(),
-                family=(rec.get("family") or "f1").strip().lower(),
                 chips=_parse_chips(rec.get("chips") or ""),
                 boot_stm32=(rec.get("boot_stm32") or "").strip(),
                 boot_gd32=(rec.get("boot_gd32") or "").strip(),
