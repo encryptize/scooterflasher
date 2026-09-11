@@ -30,6 +30,8 @@ python -m scooterflasher
 python -m scooterflasher --gui
 ```
 
+![ScooterFlasher GUI](resources/scooterflasher_0.6.0.png)
+
 In the GUI, **Flash** is **DRV** (ESC) or **BLE**. **Firmware** is required for Flash. **Dry run** logs what would be sent without starting OpenOCD or writing. Options (SN, km, chip, …) only appear when they apply. **Chip** is `stm32` / `gd32` / `at32` (replaces the old fake-chip checkbox). **Unlock** picks the right path for the selected scooter (F4 RDP, GD32, or STM32F1).
 
 ## CLI examples
