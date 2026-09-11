@@ -30,7 +30,7 @@ def main(argv=None):
     flash = Flasher(
         args.device,
         args.sn or "",
-        args.fake_chip,
+        args.chip,
         args.extract_data,
         args.custom_fw,
         args.custom_ram,

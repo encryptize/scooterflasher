@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scooterflasher"
-version = "0.5.2"
+version = "0.6.0"
 description = "ST-Link / OpenOCD SWD flasher for Xiaomi and Ninebot scooters"
 authors = ["ScooterTeam"]
 license = "GPL-3.0-or-later"
@@ -9,6 +9,7 @@ homepage = "https://github.com/scooterteam/scooterflasher"
 repository = "https://github.com/scooterteam/scooterflasher"
 keywords = ["Xiaomi", "Ninebot", "Scooter", "ST-Link", "OpenOCD", "ScooterFlasher"]
 packages = [{include = "scooterflasher"}]
+include = ["scooterflasher/data/*.csv"]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"

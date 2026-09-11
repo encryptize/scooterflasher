@@ -18,6 +18,8 @@ setup(
     python_requires=">=3.10, <4",
     license="GPL-3.0-or-later",
     packages=["scooterflasher"],
+    package_data={"scooterflasher": ["data/*.csv"]},
+    include_package_data=True,
     install_requires=["requests", "PySide6"],
     entry_points={
         "console_scripts": [

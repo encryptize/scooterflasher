@@ -8,16 +8,22 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from scooterflasher.core import ESC_APP_OFFSET, ESC_FLASH_BASE, F4_APP_BASE, F4_FLASH_BASE, Flasher
 from scooterflasher.paths import BOOTLOADER_DIR, TOOL_ROOT
 from scooterflasher.utils import (
+    CHIP_AT32,
+    CHIP_GD32,
+    CHIP_STM32,
+    CHIP_STM32F4,
+    allowed_chips,
     parse_args,
     supports_ble,
-    supports_fake_chip,
+    supports_chip,
     supports_unlock,
 )
+from scooterflasher.matrix import ble_bootloader_name
 
 
 def _rpc_mock():
@@ -44,15 +50,35 @@ class TestCapabilityHelpers(unittest.TestCase):
         self.assertFalse(supports_ble("4proita"))
         self.assertTrue(supports_unlock("4proita", "ESC"))
         self.assertFalse(supports_unlock("4proita", "BLE"))
-        self.assertFalse(supports_fake_chip("4proita", "ESC"))
+        self.assertEqual(allowed_chips("4proita"), (CHIP_STM32F4,))
+        self.assertTrue(supports_chip("4proita", CHIP_STM32F4))
+        self.assertFalse(supports_chip("4proita", CHIP_STM32))
 
-    def test_mi3_supports_ble_and_gd32(self):
+    def test_mi3_supports_gd32_not_at32(self):
         self.assertTrue(supports_ble("mi3"))
-        self.assertTrue(supports_fake_chip("mi3", "ESC"))
-        self.assertTrue(supports_fake_chip("mi3", "BLE"))
+        self.assertEqual(allowed_chips("mi3"), (CHIP_STM32, CHIP_GD32))
+        self.assertTrue(supports_chip("mi3", CHIP_GD32))
+        self.assertFalse(supports_chip("mi3", CHIP_AT32))
 
-    def test_g2_no_ble(self):
-        self.assertFalse(supports_ble("g2"))
+    def test_max_f_at32_only(self):
+        for d in ("max", "f"):
+            chips = allowed_chips(d)
+            self.assertEqual(chips, (CHIP_STM32, CHIP_AT32))
+            self.assertFalse(supports_chip(d, CHIP_GD32))
+
+    def test_dual_gd32_at32_models(self):
+        for d in ("g2", "f2", "f2plus", "f2pro", "4pro", "4proplus", "4promax"):
+            chips = allowed_chips(d)
+            self.assertIn(CHIP_STM32, chips)
+            self.assertIn(CHIP_GD32, chips)
+            self.assertIn(CHIP_AT32, chips)
+
+    def test_m365_stm32_only(self):
+        self.assertEqual(allowed_chips("m365"), (CHIP_STM32,))
+
+    def test_g2_has_ble(self):
+        self.assertTrue(supports_ble("g2"))
+        self.assertEqual(ble_bootloader_name("g2", clone_chip=False), "nb_BLE.bin")
 
 
 class TestParseArgs(unittest.TestCase):
@@ -60,13 +86,28 @@ class TestParseArgs(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--device", "4proita", "--target", "BLE"])
 
-    def test_4proita_rejects_fake_chip(self):
+    def test_4proita_rejects_gd32_chip(self):
         with self.assertRaises(SystemExit):
-            parse_args(["--device", "4proita", "--target", "ESC", "--fake-chip", "--cfw", "x.bin"])
+            parse_args(
+                ["--device", "4proita", "--target", "ESC", "--chip", "gd32", "--cfw", "x.bin"]
+            )
+
+    def test_mi3_rejects_at32(self):
+        with self.assertRaises(SystemExit):
+            parse_args(
+                ["--device", "mi3", "--target", "ESC", "--chip", "at32", "--cfw", "x.bin"]
+            )
 
     def test_unlock_flag(self):
         args = parse_args(["--device", "4proita", "--target", "ESC", "--unlock"])
         self.assertTrue(args.unlock)
+        self.assertEqual(args.chip, CHIP_STM32F4)
+
+    def test_4proita_chip_stm32f4(self):
+        args = parse_args(
+            ["--device", "4proita", "--target", "ESC", "--chip", "stm32f4", "--cfw", "x.bin"]
+        )
+        self.assertEqual(args.chip, CHIP_STM32F4)
 
     def test_firmware_required_unless_unlock(self):
         with self.assertRaises(SystemExit):
@@ -74,9 +115,22 @@ class TestParseArgs(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--device", "m365", "--target", "ESC"])
 
-    def test_default_sn(self):
+    def test_default_sn_and_chip(self):
         args = parse_args(["--device", "m365", "--target", "ESC", "--cfw", "x.bin"])
         self.assertEqual(args.sn, "16133/00000000")
+        self.assertEqual(args.chip, CHIP_STM32)
+
+    def test_chip_gd32_accepted(self):
+        args = parse_args(
+            ["--device", "f2", "--target", "ESC", "--chip", "gd32", "--cfw", "x.bin"]
+        )
+        self.assertEqual(args.chip, CHIP_GD32)
+
+    def test_max_rejects_gd32(self):
+        with self.assertRaises(SystemExit):
+            parse_args(
+                ["--device", "max", "--target", "ESC", "--chip", "gd32", "--cfw", "x.bin"]
+            )
 
 
 class TestTargetSelection(unittest.TestCase):
@@ -85,12 +139,16 @@ class TestTargetSelection(unittest.TestCase):
         self.assertEqual(f._target_key(), "stm32f4x")
 
     def test_gd32_uses_nocpuid(self):
-        f = Flasher("mi3", fake_chip=True, openocd=MagicMock())
+        f = Flasher("mi3", chip=CHIP_GD32, openocd=MagicMock())
         self.assertEqual(f._target_key(), "stm32f1x-nocpuid")
 
     def test_at32_target(self):
-        f = Flasher("4pro", fake_chip=True, openocd=MagicMock())
+        f = Flasher("4pro", chip=CHIP_AT32, openocd=MagicMock())
         self.assertEqual(f._target_key(), "at32")
+
+    def test_max_gd32_uses_nocpuid(self):
+        f = Flasher("f2", chip=CHIP_GD32, openocd=MagicMock())
+        self.assertEqual(f._target_key(), "stm32f1x-nocpuid")
 
     def test_ble_fast(self):
         f = Flasher("pro2", openocd=MagicMock())
@@ -109,10 +167,9 @@ class TestUnlockDryRun(unittest.TestCase):
 
     def test_unlock_dispatches_gd32(self):
         oocd, rpc = _oocd_mock()
-        f = Flasher("mi3", fake_chip=True, openocd=oocd)
+        f = Flasher("mi3", chip=CHIP_GD32, openocd=oocd)
         f.unlock()
         oocd.start.assert_called_with("stm32f1x-nocpuid")
-        # GD32 poke hits option-byte region
         addrs = [c.args[0] for c in rpc.mww.call_args_list]
         self.assertIn(0x1FFFF800, addrs)
 
@@ -125,7 +182,7 @@ class TestUnlockDryRun(unittest.TestCase):
 
     def test_unlock_at32_errors(self):
         oocd, _ = _oocd_mock()
-        f = Flasher("max", fake_chip=True, openocd=oocd)
+        f = Flasher("max", chip=CHIP_AT32, openocd=oocd)
         with self.assertRaises(RuntimeError):
             f.unlock()
 
@@ -133,7 +190,7 @@ class TestUnlockDryRun(unittest.TestCase):
 class TestFlashDryRun(unittest.TestCase):
     def test_flash_f4_boot_and_app(self):
         oocd, rpc = _oocd_mock()
-        boot = BOOTLOADER_DIR / "mi_DRV_STM32F4.bin"
+        boot = BOOTLOADER_DIR / "mi_DRV_F4.bin"
         self.assertTrue(boot.is_file(), f"missing {boot}")
         with tempfile.TemporaryDirectory() as td:
             app = Path(td) / "app.bin"
@@ -177,7 +234,6 @@ class TestFlashDryRun(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             fw = Path(td) / "m365_ESC.bin"
             fw.write_bytes(b"\x22" * 128)
-            # Point firmware lookup at temp via custom_fw; bootloader from repo
             f = Flasher(
                 "m365",
                 sn="16133/00000000",
@@ -205,8 +261,8 @@ class TestBinaryResolution(unittest.TestCase):
         f = Flasher("4proita", openocd=MagicMock())
         boot = f.get_bootloader_path("ESC")
         self.assertTrue(Path(boot).is_file())
-        self.assertTrue("mi_DRV_STM32F4" in boot)
-        # Jump stub only (16 KiB), not combined boot‖app
+        self.assertTrue("mi_DRV_F4" in boot)
+        self.assertEqual(f.chip, CHIP_STM32F4)
         self.assertEqual(Path(boot).stat().st_size, 16384)
 
     def test_4proita_fw_requires_path(self):
@@ -214,10 +270,60 @@ class TestBinaryResolution(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             f.get_firmware_path("ESC")
 
-    def test_gd32_bootloader_name(self):
-        f = Flasher("mi3", fake_chip=True, openocd=MagicMock())
+    def test_gd32_4k_for_at32_capable_models(self):
+        for device in ("g2", "f2", "f2plus", "f2pro", "4pro", "4proplus", "4promax"):
+            f = Flasher(device, chip=CHIP_GD32, openocd=MagicMock())
+            path = f.get_bootloader_path("ESC")
+            self.assertTrue(
+                path.endswith("mi_DRV_GD32_4k.bin"),
+                f"{device}: {path}",
+            )
+            self.assertEqual(Path(path).stat().st_size, 4096)
+
+    def test_gd32_classic_for_gd32_only_models(self):
+        for device in ("pro2", "1s", "lite", "mi3"):
+            f = Flasher(device, chip=CHIP_GD32, openocd=MagicMock())
+            path = f.get_bootloader_path("ESC")
+            self.assertTrue(path.endswith("mi_DRV_GD32.bin"), f"{device}: {path}")
+            self.assertNotIn("_4k", path)
+            self.assertEqual(Path(path).stat().st_size, 3104)
+
+    def test_at32_bootloader(self):
+        f = Flasher("max", chip=CHIP_AT32, openocd=MagicMock())
         path = f.get_bootloader_path("ESC")
-        self.assertIn("GD32", path)
+        self.assertIn("nb_DRV_AT32.bin", path)
+
+    def test_stm32_brand_bootloaders(self):
+        self.assertTrue(
+            Flasher("mi3", openocd=MagicMock()).get_bootloader_path("ESC").endswith("mi_DRV.bin")
+        )
+        self.assertTrue(
+            Flasher("max", openocd=MagicMock()).get_bootloader_path("ESC").endswith("nb_DRV.bin")
+        )
+
+
+class TestBootloaderMatrix(unittest.TestCase):
+    def test_matrix_covers_all_devices(self):
+        from scooterflasher.matrix import matrix
+        from scooterflasher.utils import ALL_DEVICES
+
+        self.assertEqual(set(matrix()), set(ALL_DEVICES))
+
+    def test_matrix_esc_names_match_resolution(self):
+        from scooterflasher.matrix import esc_bootloader_name, matrix
+
+        for device, row in matrix().items():
+            if row.is_f4:
+                self.assertEqual(
+                    esc_bootloader_name(device, CHIP_STM32F4), row.boot_stm32
+                )
+                continue
+            for chip in row.chips:
+                name = esc_bootloader_name(device, chip)
+                self.assertTrue(name.endswith(".bin"), name)
+                f = Flasher(device, chip=chip, openocd=MagicMock())
+                path = f.get_bootloader_path("ESC")
+                self.assertTrue(path.endswith(name), f"{device}/{chip}: {path}")
 
 
 class TestDryRun(unittest.TestCase):

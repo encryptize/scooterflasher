@@ -36,13 +36,13 @@ from scooterflasher.paths import TOOL_ROOT
 from scooterflasher.styles import DARK_THEME
 from scooterflasher.utils import (
     ALL_DEVICES,
+    CHIP_AT32,
+    CHIP_GD32,
+    CHIP_STM32,
     DEFAULT_ESC_SN,
     F4_DEV,
-    NINEBOT_DEV,
-    XIAOMI_DEV,
-    XIAOMI_V2_DEV,
+    allowed_chips,
     supports_ble,
-    supports_fake_chip,
     supports_unlock,
 )
 from scooterflasher.version import __version__
@@ -71,7 +71,7 @@ class FlashWorker(QThread):
             flasher = Flasher(
                 device=self.opts["device"],
                 sn=self.opts.get("sn") or "",
-                fake_chip=self.opts.get("fake_chip", False),
+                chip=self.opts.get("chip", CHIP_STM32),
                 extract_data=self.opts.get("extract_data", False),
                 custom_fw=self.opts.get("custom_fw") or None,
                 custom_ram=self.opts.get("custom_ram") or None,
@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
 
         self.sn = QLineEdit()
         self.km = QLineEdit("0")
-        self.fake_chip = QCheckBox("Fake chip (GD32 Xiaomi / AT32 Ninebot · 16k BLE)")
+        self.chip = QComboBox()
         self.extract_uid = QCheckBox("Extract UID")
         self.activate_ecu = QCheckBox("Activate ECU")
         self.extract_data = QCheckBox("Extract ESC data from RAM")
@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
         self.form.addRow("Flash", self.target)
         self.form.addRow("SN / BLE name", self.sn)
         self.form.addRow("Mileage (km)", self.km)
-        self.form.addRow(self.fake_chip)
+        self.form.addRow("Chip", self.chip)
         self.form.addRow(self.extract_uid)
         self.form.addRow(self.activate_ecu)
         self.form.addRow(self.extract_data)
@@ -231,7 +231,7 @@ class MainWindow(QMainWindow):
 
         self.device.currentTextChanged.connect(self._sync_ui)
         self.target.currentTextChanged.connect(self._sync_ui)
-        self.fake_chip.toggled.connect(self._sync_ui)
+        self.chip.currentTextChanged.connect(self._sync_ui)
         self._sync_ui()
         self._worker: FlashWorker | None = None
 
@@ -260,13 +260,25 @@ class MainWindow(QMainWindow):
         self.target.setCurrentIndex(idx if idx >= 0 else 0)
         self.target.blockSignals(False)
 
+    def _rebuild_chip(self, device: str):
+        current = self.chip.currentText()
+        self.chip.blockSignals(True)
+        self.chip.clear()
+        chips = allowed_chips(device)
+        self.chip.addItems(list(chips) if chips else [CHIP_STM32])
+        idx = self.chip.findText(current)
+        self.chip.setCurrentIndex(idx if idx >= 0 else 0)
+        self.chip.blockSignals(False)
+
     def _sync_ui(self, *_args):
         device = self.device.currentText()
         self._rebuild_targets(device)
+        self._rebuild_chip(device)
         target = self._internal_target()
         is_f4 = device in F4_DEV
         is_drv = target == "ESC"
         is_ble = target == "BLE"
+        chip = self.chip.currentText() or CHIP_STM32
 
         # SN: DRV (non-F4) or BLE name
         show_sn = (is_drv and not is_f4) or is_ble
@@ -283,12 +295,10 @@ class MainWindow(QMainWindow):
             self.sn.clear()
 
         self._set_row_visible(self.km, is_drv and not is_f4)
-        show_fake = supports_fake_chip(device, target)
-        self._set_row_visible(self.fake_chip, show_fake)
-        if not show_fake:
-            self.fake_chip.setChecked(False)
-        elif is_f4:
-            self.fake_chip.setChecked(False)
+        if is_f4:
+            self._set_row_visible(self.chip, False)
+        else:
+            self._set_row_visible(self.chip, len(allowed_chips(device)) > 1)
 
         self._set_row_visible(self.extract_uid, is_drv and not is_f4)
         self._set_row_visible(self.activate_ecu, is_drv and not is_f4)
@@ -310,16 +320,12 @@ class MainWindow(QMainWindow):
         if is_f4:
             self.btn_unlock.setToolTip("STM32F4 RDP clear - then power-cycle before Flash")
             self.statusBar().showMessage("4proita · STM32F4 · Unlock → POR → Flash")
-        elif is_drv and self.fake_chip.isChecked() and supports_fake_chip(device, "ESC"):
-            if device in XIAOMI_DEV:
-                self.btn_unlock.setToolTip("GD32 option-byte unlock")
-                self.statusBar().showMessage("Ready · GD32 unlock")
-            elif device in NINEBOT_DEV + XIAOMI_V2_DEV:
-                self.btn_unlock.setToolTip("AT32: no separate unlock - use Flash")
-                self.statusBar().showMessage("Ready · AT32 (unlock via Flash)")
-            else:
-                self.btn_unlock.setToolTip("Unlock chip protection")
-                self.statusBar().showMessage("Ready · ST-Link SWD")
+        elif is_drv and chip == CHIP_GD32:
+            self.btn_unlock.setToolTip("GD32 option-byte unlock")
+            self.statusBar().showMessage("Ready · GD32 unlock")
+        elif is_drv and chip == CHIP_AT32:
+            self.btn_unlock.setToolTip("AT32: no separate unlock - use Flash")
+            self.statusBar().showMessage("Ready · AT32 (unlock via Flash)")
         elif is_drv:
             self.btn_unlock.setToolTip("STM32 RDP unlock (stm32f1x)")
             self.statusBar().showMessage("Ready · ST-Link SWD")
@@ -341,7 +347,7 @@ class MainWindow(QMainWindow):
             instructions_for(
                 self.device.currentText(),
                 self._internal_target(),
-                self.fake_chip.isChecked(),
+                self.chip.currentText() or CHIP_STM32,
             )
         )
 
@@ -356,7 +362,7 @@ class MainWindow(QMainWindow):
             "target": self._internal_target(),
             "sn": self.sn.text().strip(),
             "km": self.km.text().strip() or "0",
-            "fake_chip": self.fake_chip.isChecked(),
+            "chip": self.chip.currentText() or CHIP_STM32,
             "extract_uid": self.extract_uid.isChecked(),
             "activate_ecu": self.activate_ecu.isChecked(),
             "extract_data": self.extract_data.isChecked(),

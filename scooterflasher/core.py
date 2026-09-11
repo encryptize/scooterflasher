@@ -18,12 +18,17 @@ from scooterflasher.oocd import OpenOCD
 from scooterflasher.paths import BOOTLOADER_DIR, TOOL_ROOT, posix
 from scooterflasher.rpc import POR_INSTRUCTIONS, rdp_level
 from scooterflasher.utils import (
-    FAKEDRV_DEV,
+    CHIP_AT32,
+    CHIP_GD32,
+    CHIP_STM32,
     F4_DEV,
     NINEBOT_DEV,
     V2_BLE_PREFIX,
     XIAOMI_DEV,
     XIAOMI_V2_DEV,
+    ble_bootloader_name,
+    esc_bootloader_name,
+    normalize_chip,
     sfprint,
 )
 
@@ -40,7 +45,7 @@ class Flasher:
         self,
         device: str,
         sn: str = "",
-        fake_chip: bool = False,
+        chip: str = CHIP_STM32,
         extract_data: bool = False,
         custom_fw: str | None = None,
         custom_ram: str | None = None,
@@ -53,7 +58,7 @@ class Flasher:
     ) -> None:
         self.device = device
         self.sn = sn or ""
-        self.fake_chip = fake_chip
+        self.chip = normalize_chip(device, chip)
         self.extract_data = extract_data
         self.custom_fw = custom_fw
         self.custom_ram = custom_ram
@@ -65,6 +70,11 @@ class Flasher:
         if dry_run:
             self._say("[dry-run] No OpenOCD / no flash writes")
 
+    @property
+    def clone_chip(self) -> bool:
+        """Non-STM32 ESC / 16k BLE layout (former --fake-chip)."""
+        return self.chip in (CHIP_GD32, CHIP_AT32)
+
     def _say(self, msg: str) -> None:
         self.log(msg)
 
@@ -73,9 +83,9 @@ class Flasher:
             return "nrf51-fast" if fast_mode else "nrf51"
         if self.device in F4_DEV:
             return "stm32f4x"
-        if self.fake_chip and self.device in XIAOMI_DEV:
+        if self.chip == CHIP_GD32:
             return "stm32f1x-nocpuid"
-        if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
+        if self.chip == CHIP_AT32:
             return "at32"
         return "stm32f1x"
 
@@ -135,10 +145,10 @@ class Flasher:
         """Pick unlock path for the current scooter / chip options."""
         if self.device in F4_DEV:
             return self.unlock_f4()
-        if self.fake_chip and self.device in XIAOMI_DEV:
+        if self.chip == CHIP_GD32:
             self.unlock_gd32()
             return None
-        if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
+        if self.chip == CHIP_AT32:
             raise RuntimeError(
                 "AT32 has no separate unlock step - use Flash (mass-erase is included)."
             )
@@ -170,13 +180,12 @@ class Flasher:
         rpc = self._ensure()
         rpc.init_halt()
         rpc.send("flash probe 0")
-        if not (self.fake_chip and self.device in XIAOMI_DEV):
-            if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
-                pass  # AT32: skip stm32f1x unlock
-            else:
-                rpc.send("stm32f1x unlock 0")
-                rpc.send("reset halt")
-        if self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
+        if self.chip == CHIP_AT32:
+            pass  # AT32: skip stm32f1x unlock
+        elif self.chip != CHIP_GD32:
+            rpc.send("stm32f1x unlock 0")
+            rpc.send("reset halt")
+        if self.chip == CHIP_AT32:
             rpc.send("flash erase_sector 0 0 last")
         else:
             rpc.send("stm32f1x mass_erase 0")
@@ -231,7 +240,7 @@ class Flasher:
         rpc.init_halt()
         rpc.send("nrf51 mass_erase")
         rpc.program(bootloader_file, 0x00000000)
-        if self.fake_chip or self.device not in V2_BLE_PREFIX:
+        if self.clone_chip or self.device not in V2_BLE_PREFIX:
             rpc.program(firmware_file, 0x18000)
             rpc.program(user_data, 0x23400)
         else:
@@ -242,7 +251,7 @@ class Flasher:
         self._say("BLE flash done")
 
     def dump_ram_stm32(self) -> None:
-        if self.fake_chip and self.device in XIAOMI_DEV:
+        if self.chip == CHIP_GD32:
             self._say("Warning: GD32 RAM dump is less tested - report issues if it fails.")
         ram_file = self.get_ram_path()
         rpc = self._ensure()
@@ -260,8 +269,6 @@ class Flasher:
             self.flash_f4(unlock_first=unlock_f4)
             return
 
-        if self.fake_chip and self.device not in FAKEDRV_DEV:
-            raise RuntimeError(f"{self.device} doesn't have a fake chip")
         if not self.extract_data and not self.custom_ram:
             if mileage < 0 or mileage > 30000:
                 raise ValueError("Mileage must be between 0 and 30000km")
@@ -279,7 +286,7 @@ class Flasher:
                 if not re.match(r"[A-Z0-9]{14}", self.sn):
                     raise ValueError(f"Invalid SN format. {self.sn}")
 
-        if self.fake_chip and self.device in XIAOMI_DEV:
+        if self.chip == CHIP_GD32:
             self.unlock_gd32()
 
         if self.extract_data:
@@ -293,7 +300,7 @@ class Flasher:
                     raise RuntimeError("Failed to read chip UID")
             self.generate_userdata_esc(extract_uid, activate_ecu, mileage)
 
-        if self.fake_chip and self.device in XIAOMI_DEV:
+        if self.chip == CHIP_GD32:
             self.unlock_gd32()
 
         self.flash_stm32()
@@ -394,31 +401,11 @@ class Flasher:
         if self.custom_bootloader:
             return posix(self.custom_bootloader)
 
-        if self.device in F4_DEV and target == "ESC":
-            return self._resolve_binary(
-                BOOTLOADER_DIR / "mi_DRV_STM32F4.bin",
-                Path(CONFIG_DIRECTORY) / "binaries" / "bootloader" / "mi_DRV_STM32F4.bin",
-            )
-
-        if self.device in XIAOMI_DEV:
-            brand = "mi"
-        elif self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
-            brand = "nb"
-        else:
-            brand = "mi"
-
         if target == "ESC":
-            if self.fake_chip and self.device in XIAOMI_DEV:
-                bootloader_file = f"{brand}_DRV_GD32.bin"
-            elif self.fake_chip and self.device in NINEBOT_DEV + XIAOMI_V2_DEV:
-                bootloader_file = f"{brand}_DRV_AT32.bin"
-            else:
-                bootloader_file = f"{brand}_DRV.bin"
+            bootloader_file = esc_bootloader_name(self.device, self.chip)
         elif target == "BLE":
-            bootloader_file = (
-                f"{brand}_BLE.bin"
-                if self.fake_chip or self.device not in V2_BLE_PREFIX
-                else f"{brand}_BLE_V2.bin"
+            bootloader_file = ble_bootloader_name(
+                self.device, clone_chip=self.clone_chip
             )
         else:
             raise ValueError(target)
@@ -440,7 +427,7 @@ class Flasher:
     def get_uicr_file(self) -> str:
         uicr_file = (
             "UICR.bin"
-            if self.fake_chip or self.device not in V2_BLE_PREFIX
+            if self.clone_chip or self.device not in V2_BLE_PREFIX
             else "UICR_32K.bin"
         )
         stem = uicr_file.replace(".bin", "")

@@ -4,6 +4,24 @@
 import argparse
 import sys
 
+from scooterflasher.matrix import (
+    CHIP_AT32,
+    CHIP_GD32,
+    CHIP_STM32,
+    CHIP_STM32F4,
+    CHIPS,
+    allowed_chips,
+    ble_bootloader_name,
+    device_brand,
+    esc_bootloader_name,
+    f4_devices,
+    matrix_devices,
+    no_ble_devices,
+    normalize_chip,
+    supports_chip,
+    v2_ble_devices,
+)
+
 XIAOMI_DEV = [
     "m365", "pro", "pro2", "1s", "lite", "mi3",
 ]
@@ -13,25 +31,18 @@ XIAOMI_V2_DEV = [
 ]
 
 # Xiaomi 4 Pro F4 ESC (STM32F400CBT6 / F410 stand-in) - not the F1/AT32 "4pro"
-F4_DEV = [
-    "4proita",
-]
+F4_DEV = list(f4_devices())
 
-V2_BLE_PREFIX = [
-    "pro2", "1s", "lite", "mi3",
-]
+V2_BLE_PREFIX = list(v2_ble_devices())
 NINEBOT_DEV = [
     "max", "esx", "e", "f", "t15", "g2", "f2", "f2plus", "f2pro"
 ]
 
-FAKEDRV_DEV = [
-    "pro2", "1s", "lite", "mi3", "max", "f", "g2", "f2",
-] + XIAOMI_V2_DEV
-
-ALL_DEVICES = NINEBOT_DEV + XIAOMI_DEV + XIAOMI_V2_DEV + F4_DEV
+# Prefer matrix order for CLI/GUI device list
+ALL_DEVICES = matrix_devices()
 
 # BLE not supported / not wired in this tool
-NO_BLE_DEV = set(F4_DEV) | {"g2"}
+NO_BLE_DEV = set(no_ble_devices())
 
 
 def supports_ble(device: str) -> bool:
@@ -40,14 +51,6 @@ def supports_ble(device: str) -> bool:
 
 def supports_drv(device: str) -> bool:
     return True  # all listed models have an ESC/DRV path
-
-
-def supports_fake_chip(device: str, target: str = "ESC") -> bool:
-    if device in F4_DEV:
-        return False
-    if target == "BLE":
-        return True  # 16k RAM layout
-    return device in FAKEDRV_DEV
 
 
 def supports_unlock(device: str, target: str = "ESC") -> bool:
@@ -166,8 +169,14 @@ def parse_args(argv=None):
     parser.add_argument("--km",
                         help="Mileage to set when flashing ECU.",
                         default=0, type=float)
-    parser.add_argument("--fake-chip", action="store_true",
-                        help="GD32 (Xiaomi) or AT32 (Ninebot/V2) instead of STM32. 16k RAM BLE when flashing dashboard.")
+    parser.add_argument(
+        "--chip",
+        type=str.lower,
+        choices=list(CHIPS),
+        default=CHIP_STM32,
+        help="ESC MCU: stm32 (default), gd32, at32, or stm32f4 (4proita). "
+             "gd32/at32 also select 16k RAM BLE layout when flashing dashboard.",
+    )
     parser.add_argument("--extract-data", action="store_true",
                         help="Extract all data from ECU during flash. If enabled, there is no need to complete the data for the controller.")
     parser.add_argument("--extract-uid", action="store_true",
@@ -204,9 +213,16 @@ def parse_args(argv=None):
     if args.device in F4_DEV:
         if args.target != "ESC":
             parser.error("4proita is STM32F4 ESC only (no BLE target)")
-        if args.fake_chip:
-            parser.error("4proita is STM32F4 - --fake-chip does not apply")
+        try:
+            args.chip = normalize_chip(args.device, args.chip)
+        except ValueError as e:
+            parser.error(str(e))
         args.sn = args.sn or ""
+    else:
+        try:
+            args.chip = normalize_chip(args.device, args.chip)
+        except ValueError as e:
+            parser.error(str(e))
 
     if not args.unlock and not args.custom_fw:
         parser.error("Firmware is required: pass --cfw / --fw (unless --unlock)")
@@ -219,9 +235,6 @@ def parse_args(argv=None):
             sfprint(f"No serial number is given, the program will use the default one. {DEFAULT_ESC_SN[args.device]} for {args.device}")
             args.sn = DEFAULT_ESC_SN[args.device]
     elif args.target == "BLE":
-        if args.device == "g2":
-            sfprint(f"BLE flashing is not currently supported for this model ({args.device})!")
-            sys.exit(1)
         if not args.sn:
             sfprint("No displayed name is given for the display. The program will use the default one.")
             if args.device in XIAOMI_DEV:

@@ -47,6 +47,7 @@ jobs:
               --add-data "resources/*:resources"
               --add-data "binaries:binaries"
               --add-data "oocd/scripts:oocd/scripts"
+              --add-data "scooterflasher/data:scooterflasher/data"
               -w -F -s scooterflasher/gui.py
             OUT_FILENAME: scooterflasher
             UPLOAD_FILENAME: scooterflasher-${{ github.ref_name }}-linux-x64
@@ -59,6 +60,7 @@ jobs:
               --add-data "resources/*:resources"
               --add-data "binaries:binaries"
               --add-data "oocd/scripts:oocd/scripts"
+              --add-data "scooterflasher/data:scooterflasher/data"
               -w -F -s scooterflasher/gui.py &&
               cd dist/ &&
               zip -r9 scooterflasher scooterflasher.app/
@@ -73,6 +75,7 @@ jobs:
               --add-data "binaries;binaries"
               --add-data "oocd/scripts;oocd/scripts"
               --add-data "oocd/bin;oocd/bin"
+              --add-data "scooterflasher/data;scooterflasher/data"
               -w -F scooterflasher/gui.py
             OUT_FILENAME: scooterflasher.exe
             UPLOAD_FILENAME: scooterflasher-${{ github.ref_name }}-windows-x64.exe
